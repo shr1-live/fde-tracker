@@ -1,0 +1,889 @@
+{
+  "days": [
+    {
+      "n": 1,
+      "layer": "Layer 0",
+      "name": "Problem, design and foundation",
+      "outline": "Outline Week 1",
+      "goal": "Understand the problem before any code: discovery, design, data, API, security and quality basics, then a first model call on a provider switch you can flip between Azure and local.",
+      "learn": "What an FDE does and the mindset shift. How to ask discovery questions. Architecture, API and data-model thinking. Security basics (secrets, input validation, least privilege). Tokens, context windows and cost.",
+      "watch": [
+        {
+          "title": "What Is a Forward-Deployed Engineer?",
+          "channel": "McKinsey & Company",
+          "url": "https://www.youtube.com/watch?v=g0xspPbCUDw",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "This Is How Forward Deployed Engineering Is Actually Done",
+          "channel": "AI LABS",
+          "url": "https://www.youtube.com/watch?v=AD-EmZ3v6-g",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "[1hr Talk] Intro to Large Language Models",
+          "channel": "Andrej Karpathy",
+          "url": "https://www.youtube.com/watch?v=zjkBMFhNj_g",
+          "note": "Long; watch at 1.5x or split across the evening.",
+          "any": true
+        }
+      ],
+      "read": [
+        {
+          "title": "Understanding tokens (.NET AI)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/conceptual/understanding-tokens",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Develop .NET apps with AI features (overview, with a reading order)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/overview",
+          "note": "Open the study notes below first: they list the exact pages to read.",
+          "any": false
+        },
+        {
+          "title": "OWASP Top 10 API Security Risks 2023",
+          "url": "https://api-security.owasp.org/editions/2023/en/0x11-t10/",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Architectural Decision Records (ADRs)",
+          "url": "https://adr.github.io/",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Generative AI for Beginners (.NET) course",
+          "url": "https://github.com/microsoft/Generative-AI-for-beginners-dotnet",
+          "note": "Side reference all fortnight. The study notes below show which lesson folder matches which day.",
+          "any": true
+        }
+      ],
+      "trackA": "Create or request the Azure OpenAI resource: one chat deployment, one embedding deployment, a Key Vault. Store the key in user-secrets for now.",
+      "trackB": "Install Ollama, then pull one small chat model (phi3 or llama3.2) and nomic-embed-text. Confirm with a one-line curl or the OllamaSharp quickstart. No account needed.",
+      "build": [
+        "Design pack (about 2.5 h): half-page problem statement for the IoT OpsCopilot, 10 discovery questions you would ask the operations team, architecture sketch, API list (/triage, /ask, /agent/run), data model, a 5-item threat list, and ADR 1: why this provider and model.",
+        "Project skeleton (AI allowed): solution, DI, config with a Provider setting (Azure or Ollama), logging.",
+        "By hand: an ILlmClient wrapper over IChatClient, timeouts and retry, one chat call, token and cost logged per call.",
+        "Baseline self-assessment against the 10 outline skills (1 to 5). Keep it; you repeat it on Day 10."
+      ],
+      "drills": [
+        "Answer your own 10 discovery questions as if you were the customer. Where did you have to guess?",
+        "Tokenize 3 texts (short, long, code). Compare token counts and price per 1,000 calls.",
+        "Break it on purpose: wrong key, offline, 1-second timeout. Read each error and handle it.",
+        "Blank-page drill: delete your wrapper and rewrite it from memory in 15 minutes."
+      ],
+      "done": [
+        "One chat call prints the answer, tokens and cost on at least one provider.",
+        "Design pack and baseline assessment saved.",
+        "Unit test: wrapper retries on a simulated 429 or timeout."
+      ],
+      "cut": "Second-provider run; ADR 1 can be three lines."
+    },
+    {
+      "n": 2,
+      "layer": "Layer 1",
+      "name": "LLM engineering: prompts and structured output",
+      "outline": "Outline Week 2",
+      "goal": "A working feature that turns messy alert text into typed, validated JSON, and a measured comparison of two models.",
+      "learn": "System, user and assistant roles. Few-shot examples. JSON-schema structured output. Temperature. Model selection: cost, latency, context window. Open-source and self-hosted models.",
+      "watch": [
+        {
+          "title": "Structured AI Output in .NET (Agent Framework + OpenAI)",
+          "channel": "Authorised Territory",
+          "url": "https://www.youtube.com/watch?v=7qxZqPPHQY4",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "One Interface for Every LLM - Microsoft.Extensions.AI",
+          "channel": "Mohamad Lawand",
+          "url": "https://www.youtube.com/watch?v=3URifZTVrRw",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Build a .NET App that Talks to Local AI for FREE",
+          "channel": "Mohamad Dbouk",
+          "url": "https://www.youtube.com/watch?v=e5g8BjX3-oo",
+          "note": "Track B core video.",
+          "any": false
+        },
+        {
+          "title": "Run AI Models Locally with Ollama (Part 1)",
+          "channel": "Md Junaid Alam",
+          "url": "https://www.youtube.com/watch?v=70ghWn8DABs",
+          "note": "Optional: Ollama basics.",
+          "any": true
+        },
+        {
+          "title": "Let's build the GPT Tokenizer",
+          "channel": "Andrej Karpathy",
+          "url": "https://www.youtube.com/watch?v=zduSFxRajkE",
+          "note": "Optional, long: tokenization in depth.",
+          "any": true
+        }
+      ],
+      "read": [
+        {
+          "title": "Prompt engineering concepts (.NET)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/conceptual/prompt-engineering-dotnet",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Microsoft.Extensions.AI libraries",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/microsoft-extensions-ai",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Structured outputs with Azure OpenAI",
+          "url": "https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs",
+          "note": "Track A.",
+          "any": false
+        },
+        {
+          "title": "Ollama: structured outputs",
+          "url": "https://ollama.com/blog/structured-outputs",
+          "note": "Track B. Examples are Python and JavaScript; the same format parameter exists in Ollama's API, so check how your C# client exposes it.",
+          "any": true
+        },
+        {
+          "title": "Chat with a local model in .NET",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/quickstarts/chat-local-model",
+          "note": "Track B.",
+          "any": false
+        },
+        {
+          "title": "Ollama library: phi3",
+          "url": "https://ollama.com/library/phi3",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Ollama library: llama3.2",
+          "url": "https://ollama.com/library/llama3.2",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Tokenization algorithms (Hugging Face)",
+          "url": "https://huggingface.co/docs/transformers/tokenizer_summary",
+          "note": "Optional.",
+          "any": true
+        }
+      ],
+      "trackA": "Use ChatResponseFormat with a JSON schema on the Azure OpenAI deployment. Strict schema, no retries needed in most cases.",
+      "trackB": "Pass a JSON schema as Ollama's format parameter. Small models break the schema more often, so add a validate-and-retry loop (max 2 retries) and count how often it fires.",
+      "build": [
+        "POST /triage: alert text in, typed object out (severity, probable cause, next step, confidence).",
+        "Write your own system prompt and 3 few-shot examples. Keep prompts in files, not strings in code.",
+        "Run the same 10 sample alerts through two models (or Azure plus local). Fill a table: valid JSON rate, correct severity, latency, tokens, cost.",
+        "Fake-model xUnit test: the endpoint handles valid, invalid and empty model replies."
+      ],
+      "drills": [
+        "Write 3 prompt variants and score each on the same 10 alerts. Keep the winner and note why.",
+        "Feed an ambiguous alert and a nonsense alert. What does the model do? Add handling.",
+        "Change temperature from 0 to 1. Run each 5 times. Is the output stable?",
+        "Stuff a long text until you hit the context window. Record the error and the cost.",
+        "Blank-page drill: rewrite the schema and the validator from memory."
+      ],
+      "done": [
+        "Swagger returns valid typed JSON for 10 of 10 samples on at least one model.",
+        "Comparison table filled with real numbers.",
+        "Fake-model tests green."
+      ],
+      "cut": "The second-model live run (keep the code path and note it as not run)."
+    },
+    {
+      "n": 3,
+      "layer": "Layer 2",
+      "name": "Tool calling over real data",
+      "outline": "Outline Week 2",
+      "goal": "The model can ask your code for data. You write the tools and control exactly what they may do.",
+      "learn": "Tool schema, the call and result round trip, argument validation, read-only versus write tools, parameterised SQL. Why a model must never run raw SQL.",
+      "watch": [
+        {
+          "title": "C# - OpenAI API Function Calling Tutorial",
+          "channel": "k23 Software",
+          "url": "https://www.youtube.com/watch?v=_WTPkPETLtE",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Function Calling in Azure OpenAI Service",
+          "channel": "Kamal Rathnayake - MVP",
+          "url": "https://www.youtube.com/watch?v=rzJERWSa_G8",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Advanced Tool Calling in Microsoft Agent Framework",
+          "channel": "AI in C# (Rasmus Wulff Jensen)",
+          "url": "https://www.youtube.com/watch?v=dCtojrK8bKk",
+          "note": "Optional: uses a framework; you hand-write yours.",
+          "any": false
+        }
+      ],
+      "read": [
+        {
+          "title": "Function calling with .NET (quickstart)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/quickstarts/use-function-calling",
+          "any": false
+        },
+        {
+          "title": "Tool use overview (Claude)",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview",
+          "note": "Good diagram of the request and result loop.",
+          "any": true
+        },
+        {
+          "title": "SQLite quick start (plus the two other pages you need)",
+          "url": "https://sqlite.org/quickstart.html",
+          "note": "Track B database. The study notes below list the three pages worth reading.",
+          "any": true
+        }
+      ],
+      "trackA": "Telemetry in Azure SQL (Readings, Alerts, Devices). Connect with managed identity later; a connection string in user-secrets is fine today.",
+      "trackB": "Same tables in a SQLite file. Keep the schema identical so only the connection changes. Check the model's page on ollama.com for a tools tag before relying on tool calling.",
+      "build": [
+        "Telemetry generator (AI allowed): 50 devices, 24 hours, a minute apart, with a few planted faults.",
+        "By hand, 3 read-only tools: GetRecentReadings(deviceId, minutes), GetAlerts(deviceId, since), GetDeviceStatus(deviceId). Parameterised queries only.",
+        "By hand: one tool-calling round: send tool schemas, run the requested tool, return the result, get the final answer.",
+        "Validate every argument (type, range, known device) before touching the database."
+      ],
+      "drills": [
+        "Ask something that needs no tool. The model should not call one.",
+        "Ask about device 999. Return a clean error the model can explain.",
+        "Pass an argument like ' OR 1=1 --. Prove it is harmless.",
+        "Ask a question that needs two tools. What does your single round miss? (You fix it on Day 6.)",
+        "Blank-page drill: rewrite one tool and its schema from memory."
+      ],
+      "done": [
+        "'Which devices exceeded temperature in the last hour?' is answered correctly from the database.",
+        "Tool functions have tests that need no model.",
+        "5 tool questions added to the golden set."
+      ],
+      "cut": "Third tool; keep two."
+    },
+    {
+      "n": 4,
+      "layer": "Layer 3",
+      "name": "Embeddings, chunking and the vector store",
+      "outline": "Outline Week 3 (part 1)",
+      "goal": "Turn your runbooks into searchable vectors and see for yourself how chunking changes what is found.",
+      "learn": "Embeddings and cosine similarity. Chunk size and overlap. Metadata. Semantic versus keyword search. What a vector store keeps.",
+      "watch": [
+        {
+          "title": "Embeddings and Vector Databases for RAG: Semantic Search Explained",
+          "channel": "KryptoMindz Technologies",
+          "url": "https://www.youtube.com/watch?v=zhv8wuPSWHw",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "RAG #2: Chunking, Embeddings and Vector Databases Explained",
+          "channel": "Praveen Reddy Learnings",
+          "url": "https://www.youtube.com/watch?v=t-TQqszfhZY",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Chunking in RAG (hands-on in LangChain and LlamaIndex)",
+          "channel": "AI Bites",
+          "url": "https://www.youtube.com/watch?v=CSvn8BNnGe4",
+          "note": "Optional: Python libraries, concepts only.",
+          "any": true
+        }
+      ],
+      "read": [
+        {
+          "title": "Vector databases for .NET AI apps",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/vector-stores/overview",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "RAG with .NET (concepts)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/conceptual/rag",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Build a vector search app (quickstart)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/vector-stores/how-to/build-vector-search-app",
+          "note": "In-memory store; works in both tracks.",
+          "any": false
+        },
+        {
+          "title": "Azure AI Search: vector quickstart",
+          "url": "https://learn.microsoft.com/en-us/azure/search/search-get-started-vector",
+          "note": "Track A, optional.",
+          "any": false
+        },
+        {
+          "title": "Ollama library: nomic-embed-text",
+          "url": "https://ollama.com/library/nomic-embed-text",
+          "note": "Track B embedding model.",
+          "any": true
+        }
+      ],
+      "trackA": "Embeddings from your Azure embedding deployment. Optionally index in Azure AI Search later; the in-memory store is enough today.",
+      "trackB": "Embeddings from nomic-embed-text on Ollama. In-memory vector store saved to a JSON or SQLite file so you do not re-embed every run.",
+      "build": [
+        "Small dataset: 20 runbooks of about 300 words each (5 device types by 4 failure modes). Write 8 yourself, generate the rest with AI, then edit them. Put the file name and title in each.",
+        "By hand: a chunker with size and overlap settings (and optionally heading-aware splitting).",
+        "By hand: the ingest pipeline: read, chunk, embed, store with metadata (file, chunk number).",
+        "A search command that prints the top 5 chunks with score and source."
+      ],
+      "drills": [
+        "Try 3 chunk sizes on 10 queries. Which wins, and why?",
+        "Search with a typo, a synonym and a question in different words.",
+        "Search for something that is not in any runbook. How low are the scores?",
+        "Estimate the embedding cost of 10,000 documents.",
+        "Blank-page drill: rewrite the chunker from memory, with a test for the edge cases."
+      ],
+      "done": [
+        "Top 5 results look sensible for 10 queries.",
+        "Chunker tests cover empty input, overlap and the final chunk.",
+        "Ingest can be rerun without duplicates."
+      ],
+      "cut": "Azure AI Search and pgvector. Stay on the in-memory store."
+    },
+    {
+      "n": 5,
+      "layer": "Layer 4",
+      "name": "RAG with citations and retrieval evaluation",
+      "outline": "Outline Week 3 (part 2)",
+      "goal": "A document assistant that answers from your runbooks, cites its sources, says 'I do not know' when it should, and is measured.",
+      "learn": "Grounding prompts, citations, refusal, prompt injection hidden in documents, hit rate and MRR, RAG versus fine-tuning versus prompt engineering.",
+      "watch": [
+        {
+          "title": "RAG C# Application with Microsoft.Extensions.AI, Ollama and Qdrant",
+          "channel": "Hamed Fathi",
+          "url": "https://www.youtube.com/watch?v=ujgf9g4ajus",
+          "note": "C#. Uses Qdrant; you keep the in-memory store.",
+          "any": false
+        },
+        {
+          "title": "Build a fully local AI RAG app - as simple as possible!",
+          "channel": "The Code Wolf",
+          "url": "https://www.youtube.com/watch?v=d60njrs_raY",
+          "note": "Optional: local RAG idea.",
+          "any": true
+        },
+        {
+          "title": "RAG Evaluation: Measuring Retrieval, Grounding and Drift",
+          "channel": "StackOps AI",
+          "url": "https://www.youtube.com/watch?v=c2GBrZhuaPA",
+          "note": "",
+          "any": true
+        }
+      ],
+      "read": [
+        {
+          "title": "Building a RAG System in .NET",
+          "url": "https://milanjovanovic.tech/blog/rag-system-dotnet",
+          "note": "Third-party blog; chunking, citations, pgvector.",
+          "any": false
+        },
+        {
+          "title": "RAG with .NET (concepts)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/conceptual/rag",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Azure AI Search: retrieval-augmented generation overview",
+          "url": "https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview",
+          "note": "Track A, optional.",
+          "any": false
+        },
+        {
+          "title": "Hugging Face: LoRA chapter (for the RAG vs fine-tuning section)",
+          "url": "https://huggingface.co/learn/llm-course/en/chapter11/4",
+          "note": "Skim the 'when to fine-tune' reasoning only.",
+          "any": true
+        }
+      ],
+      "trackA": "Chat deployment answers from retrieved chunks. Same prompt as Track B.",
+      "trackB": "A local model answers from retrieved chunks. Expect weaker answers and more refusals; record the difference, it is part of the learning.",
+      "build": [
+        "POST /ask: embed the question, retrieve top k, build the grounded prompt, return the answer with citations like [file#chunk].",
+        "Refuse when the best score is under a threshold, with a clear message.",
+        "Golden set of 25 questions: 20 answerable (with expected source file) and 5 unanswerable.",
+        "By hand: an eval runner that prints hit at 3, MRR and refusal accuracy.",
+        "Plant one malicious sentence in a runbook ('ignore previous instructions...'). Record whether the model obeys it, then harden the prompt."
+      ],
+      "drills": [
+        "Tune k and the threshold. Record the effect on hit at 3 and refusal accuracy.",
+        "Run the same 25 questions with no retrieval at all. How much does RAG add?",
+        "Read 5 wrong answers and label each: retrieval failure or generation failure.",
+        "Write down in 5 lines when you would pick fine-tuning, RAG or prompting for this project.",
+        "Blank-page drill: rewrite the grounded prompt builder from memory."
+      ],
+      "done": [
+        "Eval table printed: hit at 3, MRR, refusal accuracy, with and without retrieval.",
+        "Test proves every citation points to a chunk that was actually retrieved.",
+        "Injection test result written down."
+      ],
+      "cut": "LLM-as-judge groundedness (moves to Day 8)."
+    },
+    {
+      "n": 6,
+      "layer": "Layer 5",
+      "name": "Agent loop with human approval",
+      "outline": "Outline Week 4 (part 1)",
+      "goal": "A multi-step agent that uses your tools and your RAG, stops at a safe limit, and cannot take a write action without your approval.",
+      "learn": "Agent loop (decide, act, observe, repeat). Step limits and state. Retrieval as a tool. Human-in-the-loop. Audit trail. When a fixed workflow beats an agent.",
+      "watch": [
+        {
+          "title": "Build Your First AI Agent in C# (Microsoft Agent Framework, Ep. 1)",
+          "channel": "Dewiride Technologies",
+          "url": "https://www.youtube.com/watch?v=xDX-s336d1c",
+          "note": "Concepts; you hand-write the loop first.",
+          "any": false
+        },
+        {
+          "title": ".NET AI Community Standup: Getting Started with the Microsoft Agent Framework",
+          "channel": "dotnet",
+          "url": "https://www.youtube.com/watch?v=KDxi3NG3nfU",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Build Your First AI Agent in C# with Microsoft Agent Framework (.NET 10)",
+          "channel": "Rahul Pandey",
+          "url": "https://www.youtube.com/watch?v=wc05lFtshhc",
+          "note": "Optional.",
+          "any": false
+        }
+      ],
+      "read": [
+        {
+          "title": "Agents (.NET AI concepts)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/conceptual/agents",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Tool use overview (Claude)",
+          "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview",
+          "note": "Re-read the loop section.",
+          "any": true
+        },
+        {
+          "title": "Generative AI for Beginners (.NET): lesson 4, agents",
+          "url": "https://github.com/microsoft/Generative-AI-for-beginners-dotnet/tree/main/04-AgentsWithMAF",
+          "note": "",
+          "any": true
+        }
+      ],
+      "trackA": "Chat model on Azure OpenAI drives the loop.",
+      "trackB": "Local model drives the loop. If it cannot call tools reliably, use the local model for answers and a hosted API key for the loop only for this day, or script the model with a fake for the tests.",
+      "build": [
+        "By hand, no framework: loop of messages, model reply, tool calls, execute, append results, repeat until a final answer or 8 steps.",
+        "Tools: your 3 telemetry tools plus search_runbooks (your Day 5 RAG).",
+        "Two write actions: AcknowledgeAlert and CreateTicket. Each pauses and asks for approval (console prompt or a pending-approval endpoint).",
+        "Audit log table: every step, tool, arguments, result, approver."
+      ],
+      "drills": [
+        "Ask an impossible request. The agent should stop or ask, not loop.",
+        "Use a fake model that never finishes. Prove the step limit stops it.",
+        "Deny an approval. The agent must adapt, not retry forever.",
+        "Compare the agent to a fixed 3-step workflow on 5 questions. Which is better and why?",
+        "Blank-page drill: rewrite the loop skeleton from memory."
+      ],
+      "done": [
+        "'Device 7 is overheating: diagnose and acknowledge the alert' runs end to end and pauses for approval.",
+        "Tests with a fake model: step limit, approve path, deny path.",
+        "Audit log shows each step."
+      ],
+      "cut": "CreateTicket; keep AcknowledgeAlert."
+    },
+    {
+      "n": 7,
+      "layer": "Layer 6",
+      "name": "MCP server and client",
+      "outline": "Outline Week 4 (part 2)",
+      "goal": "Move your tools behind a Model Context Protocol server so any MCP-aware client can use them, and make your agent a client of it.",
+      "learn": "MCP architecture, tools versus resources and prompts, stdio versus HTTP transport, least privilege for exposed tools.",
+      "watch": [
+        {
+          "title": "Build an MCP server with .NET 10",
+          "channel": "Les Jackson",
+          "url": "https://www.youtube.com/watch?v=kqcLWcpXb10",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "C# MCP server and client with GitHub Models",
+          "channel": "Medhat Elmasry",
+          "url": "https://www.youtube.com/watch?v=Q70iLbOxLRI",
+          "note": "Uses GitHub Models for the client; Track B swaps in your Ollama chat client.",
+          "any": false
+        },
+        {
+          "title": "Build an MCP Server in ASP.NET Core From Scratch",
+          "channel": "EzzyLearning",
+          "url": "https://www.youtube.com/watch?v=a9jQ-f1YxfU",
+          "note": "Optional: HTTP style.",
+          "any": false
+        }
+      ],
+      "read": [
+        {
+          "title": "Quickstart: minimal MCP server (.NET)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/quickstarts/build-mcp-server",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Quickstart: minimal MCP client (.NET)",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/quickstarts/build-mcp-client",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "C# MCP SDK: getting started",
+          "url": "https://csharp.sdk.modelcontextprotocol.io/v1/concepts/getting-started.html",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "C# MCP SDK repository",
+          "url": "https://github.com/modelcontextprotocol/csharp-sdk",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Build Your First MCP Server in C# (blog)",
+          "url": "https://codewithmukesh.com/blog/build-mcp-server-csharp/",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "What is MCP? (introduction, with the three pages to read)",
+          "url": "https://modelcontextprotocol.io/docs/getting-started/intro",
+          "note": "",
+          "any": true
+        }
+      ],
+      "trackA": "Server and client are the same code in both tracks; only the chat client registration differs.",
+      "trackB": "Same code. The MCP part needs no cloud at all, so this day is identical.",
+      "build": [
+        "New MCP server project exposing your 3 telemetry tools and search_runbooks. Write the tool code by hand.",
+        "Gate the write actions: expose them only when a setting is on, and keep approval on the agent side.",
+        "Replace the agent's in-process tools with an MCP client that lists and calls the server's tools over stdio.",
+        "Snapshot test of the server's tool list."
+      ],
+      "drills": [
+        "Connect a second MCP client or an inspector tool to your server and list the tools.",
+        "Add a new tool to the server. The agent should see it with no agent code change.",
+        "Call a tool with bad arguments over MCP. Check the error.",
+        "Remove the write tools from the server. Does the agent adapt?",
+        "Blank-page drill: write a new one-tool MCP server from memory."
+      ],
+      "done": [
+        "The golden tool and agent questions give the same answers through MCP as on Day 6.",
+        "Server tool-list snapshot test green.",
+        "Draw the final architecture so far (stack diagram)."
+      ],
+      "cut": "HTTP transport and the optional second client."
+    },
+    {
+      "n": 8,
+      "layer": "Layer 7",
+      "name": "Evaluation, guardrails and CI",
+      "outline": "Outline Weeks 5 to 6",
+      "goal": "Prove it works and make it safer: measure quality and hallucination, block the obvious attacks, and run it all in CI.",
+      "learn": "Hallucination types, groundedness, LLM-as-judge and its limits, input and output guardrails, tool permissions, OWASP LLM risks (prompt injection, excessive agency, sensitive data), evaluation in CI.",
+      "watch": [
+        {
+          "title": "LLM as a Judge: Evaluating AI with AI for Hallucination Detection",
+          "channel": "Data Science Dojo",
+          "url": "https://www.youtube.com/watch?v=wYibF4aezZ4",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "DeepEval Tutorial Part 2: Answer Relevancy, Faithfulness and Hallucination Detection",
+          "channel": "QA Stack",
+          "url": "https://www.youtube.com/watch?v=VOGgCMhu1zg",
+          "note": "Python library; take the metric ideas, write your own in C#.",
+          "any": true
+        }
+      ],
+      "read": [
+        {
+          "title": "OWASP Top 10 for LLM applications",
+          "url": "https://genai.owasp.org/llm-top-10/",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Microsoft.Extensions.AI.Evaluation libraries",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/evaluation/libraries",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Quickstart: evaluate a model response",
+          "url": "https://learn.microsoft.com/en-us/dotnet/ai/evaluation/evaluate-ai-response",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Building and testing .NET (GitHub Actions)",
+          "url": "https://docs.github.com/en/actions/tutorials/build-and-test-code/net",
+          "note": "",
+          "any": false
+        }
+      ],
+      "trackA": "Judge model: your Azure chat deployment, ideally a larger one than the answering model.",
+      "trackB": "Judge model: local model, which is weaker. Add rule-based checks (must contain a citation, cited file exists, answer length) and compare the judge with your own labels.",
+      "build": [
+        "Input guardrails: length limit, simple injection patterns, PII masking.",
+        "Output guardrails: must cite or refuse, schema valid, no tool names leaked.",
+        "Tool permission policy: allow-list, step limit, rate limit, write actions need approval.",
+        "By hand: LLM-as-judge groundedness score (1 to 5) plus the rule checks.",
+        "Grow the golden set to about 40: add tool, approval and 8 attack cases.",
+        "GitHub Actions: build, unit tests, and an eval on recorded or fake model replies (no live calls in CI)."
+      ],
+      "drills": [
+        "Write 5 attacks: in the user message, in a runbook, in a tool argument. Record which are blocked.",
+        "Label 10 answers yourself, then compare with the judge. Where does it disagree?",
+        "Change the prompt on purpose to make it worse. Does the eval catch it?",
+        "Blank-page drill: write the golden-set loader and metric calculation from memory."
+      ],
+      "done": [
+        "CI is green.",
+        "One-page evaluation report: hit at 3, MRR, refusal accuracy, groundedness, attack block rate, before and after.",
+        "Every guardrail has a test."
+      ],
+      "cut": "Judge model: use only the rule checks and say so in the report."
+    },
+    {
+      "n": 9,
+      "layer": "Layer 8",
+      "name": "AI-assisted delivery, deployment and monitoring",
+      "outline": "Outline Week 5",
+      "goal": "Use an AI coding assistant the way the outline asks (to ship a feature with tests, review and security), then deploy and monitor the whole thing.",
+      "learn": "Spec-driven work with a coding agent, reviewing generated code, security review checklist. Containers, secrets and managed identity, logs, traces, tokens and cost.",
+      "watch": [
+        {
+          "title": "Using GitHub Copilot for code reviews: from VS Code to github.com",
+          "channel": "GitHub",
+          "url": "https://www.youtube.com/watch?v=xf65vxjNWdk",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "How the GitHub Copilot coding agent works (Checkout)",
+          "channel": "GitHub",
+          "url": "https://www.youtube.com/watch?v=1GVBRhDI5No",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Deploying Dockerized ASP.NET Core Web API on Azure App Service",
+          "channel": "Dot Net Tutorials",
+          "url": "https://www.youtube.com/watch?v=u70Z8CeHMx0",
+          "note": "Track A.",
+          "any": false
+        },
+        {
+          "title": ".NET + Application Insights with OpenTelemetry (Portuguese audio)",
+          "channel": "Canal dotNET",
+          "url": "https://www.youtube.com/watch?v=M9V2XP9rY3c",
+          "note": "Track A or concept.",
+          "any": false
+        }
+      ],
+      "read": [
+        {
+          "title": "Docker: .NET language guide",
+          "url": "https://docs.docker.com/guides/dotnet/",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": ".NET observability with OpenTelemetry",
+          "url": "https://learn.microsoft.com/en-us/dotnet/core/diagnostics/observability-with-otel",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "Enable OpenTelemetry in Application Insights",
+          "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-enable?tabs=aspnetcore",
+          "note": "Track A.",
+          "any": false
+        },
+        {
+          "title": "Building and testing .NET (GitHub Actions)",
+          "url": "https://docs.github.com/en/actions/tutorials/build-and-test-code/net",
+          "note": "",
+          "any": false
+        },
+        {
+          "title": "OWASP Top 10 API Security Risks 2023",
+          "url": "https://api-security.owasp.org/editions/2023/en/0x11-t10/",
+          "note": "Use as your review checklist.",
+          "any": true
+        }
+      ],
+      "trackA": "Deploy API and MCP server to App Service or Container Apps with managed identity, secrets from Key Vault, telemetry to Application Insights.",
+      "trackB": "docker compose up on your machine. Secrets from environment variables. OpenTelemetry console or file exporter, plus a small script that reports latency, tokens and cost per request.",
+      "build": [
+        "Feature by AI: write a short spec for POST /incident-report (summarise an incident from the audit log). Let your coding assistant implement it.",
+        "By hand: read the diff line by line, write 3 tests yourself, run the security checklist (secrets, input validation, PII in logs, excessive agency). Write a review note listing what the AI got wrong or missed.",
+        "Dockerfile and compose file (AI allowed for boilerplate).",
+        "Deploy (Track A) or compose up (Track B). Log every model call with tokens, latency and cost."
+      ],
+      "drills": [
+        "Stop the model endpoint. The app must fail gracefully and log it.",
+        "Estimate cost per 100 requests from your own logs.",
+        "Rotate a secret and redeploy without code changes.",
+        "Blank-page drill: write the model-call logging middleware from memory."
+      ],
+      "done": [
+        "A running container (cloud URL or localhost) answers a question end to end.",
+        "Logs show per-call tokens, latency and cost.",
+        "The AI-review note exists and names at least 3 real findings."
+      ],
+      "cut": "Cloud deployment. A working local compose setup counts."
+    },
+    {
+      "n": 10,
+      "layer": "Wrap-up",
+      "name": "Fine-tuning experiment, capstone package and final review",
+      "outline": "Outline Week 6",
+      "goal": "Experiment with fine-tuning, finish the capstone package, and prove progress against the outline.",
+      "learn": "LoRA and QLoRA, datasets, training versus inference cost, and what training from scratch involves (concept only). Final presentation structure.",
+      "watch": [
+        {
+          "title": "LoRA and QLoRA Fine-tuning Explained In-Depth",
+          "channel": "Mark Hennings",
+          "url": "https://www.youtube.com/watch?v=t1caDsMzWBk",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "LoRA and QLoRA Explained Simply",
+          "channel": "Sunny Savita",
+          "url": "https://www.youtube.com/watch?v=cO6Ly7mIziQ",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Let's build GPT: from scratch, in code, spelled out",
+          "channel": "Andrej Karpathy",
+          "url": "https://www.youtube.com/watch?v=kCc8FmEb1nY",
+          "note": "Concept only: watch selectively for how training from scratch works.",
+          "any": true
+        }
+      ],
+      "read": [
+        {
+          "title": "Hugging Face LLM course: LoRA",
+          "url": "https://huggingface.co/learn/llm-course/en/chapter11/4",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Hugging Face PEFT documentation",
+          "url": "https://huggingface.co/docs/peft/index",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Tokenization algorithms (Hugging Face)",
+          "url": "https://huggingface.co/docs/transformers/tokenizer_summary",
+          "note": "",
+          "any": true
+        },
+        {
+          "title": "Architectural Decision Records (ADRs)",
+          "url": "https://adr.github.io/",
+          "note": "",
+          "any": true
+        }
+      ],
+      "trackA": "Experiment on a free notebook GPU if you can get one (Google Colab needs a Google account; free GPU availability is not guaranteed and was not verified).",
+      "trackB": "No GPU: use a very small open model on CPU with about 100 examples, only to see the pipeline and compare with your prompted triage. If that is impossible, write a one-page decision memo: fine-tune, RAG or prompt for this project, with cost estimates.",
+      "build": [
+        "Fine-tuning experiment (2 h timebox): turn about 100 of your Day 2 alerts and answers into a small dataset, run a LoRA fine-tune of a small open model, compare against your prompted version on 10 held-out alerts. A poor result is fine; write down why.",
+        "Capstone package: README, final architecture diagram, ADRs, evaluation report, setup steps for both tracks.",
+        "10-minute demo script and a half-page non-technical stakeholder update.",
+        "Repeat the baseline self-assessment from Day 1 and compare."
+      ],
+      "drills": [
+        "Present the demo aloud to a colleague or a recording.",
+        "Answer these cold: why this chunk size, why an approval gate, what MCP added, how you would reduce cost by half.",
+        "List what you would do with 3 more weeks."
+      ],
+      "done": [
+        "Demo runs end to end.",
+        "Docs and evaluation report complete.",
+        "Final self-assessment filled; fine-tuning result or decision memo written."
+      ],
+      "cut": "Fine-tuning run (keep the memo)."
+    }
+  ],
+  "readiness": [
+    {
+      "skill": "LLM integration and prompting",
+      "target": "Build independently",
+      "where": "Days 1 to 2"
+    },
+    {
+      "skill": "RAG and vector databases",
+      "target": "Build independently",
+      "where": "Days 4 to 5"
+    },
+    {
+      "skill": "AI agents and tool calling",
+      "target": "Build independently",
+      "where": "Days 3 and 6"
+    },
+    {
+      "skill": "MCP integrations",
+      "target": "Build independently",
+      "where": "Day 7"
+    },
+    {
+      "skill": "AI application architecture",
+      "target": "Design independently",
+      "where": "Day 1 design pack, Day 10 final diagram and ADRs"
+    },
+    {
+      "skill": "AI evaluation and guardrails",
+      "target": "Implement independently",
+      "where": "Day 5 start, Day 8 full"
+    },
+    {
+      "skill": "Fine-tuning existing models",
+      "target": "Understand and experiment",
+      "where": "Day 10 experiment (or memo)"
+    },
+    {
+      "skill": "Training models from scratch",
+      "target": "Conceptual understanding",
+      "where": "Day 10 video and notes"
+    },
+    {
+      "skill": "Agentic coding tools",
+      "target": "Use effectively in daily development",
+      "where": "Day 9 AI-assisted feature and review"
+    },
+    {
+      "skill": "Production deployment and monitoring",
+      "target": "Implement independently",
+      "where": "Day 9"
+    }
+  ]
+}
