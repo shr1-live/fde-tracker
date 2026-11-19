@@ -1,0 +1,9 @@
+TASKS.md
+CLAUDE.md
+node_modules
+dist
+bin
+obj
+.env
+.env.local
+*.tsbuildinfo
