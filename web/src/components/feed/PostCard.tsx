@@ -1,9 +1,10 @@
-import { forwardRef, useEffect, useRef, useState, type FormEvent } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { clearUnsaved, hasUnsaved, useUnsaved } from "../../lib/unsaved";
 import { Link, useNavigate } from "react-router-dom";
-import { ago, feed, type Post } from "../../lib/v3";
+import { ago, feed, type Comment, type Post } from "../../lib/v3";
 import { errText } from "../../lib/useProgram";
 import { firstUrl, fullDate, plural } from "../../lib/text";
+import { useDoubleTap } from "../../lib/useDoubleTap";
 import { Avatar } from "../Avatar";
 import { Icon } from "../Icon";
 import { Linkified } from "../Linkified";
@@ -15,6 +16,7 @@ import { Skeleton } from "../States";
 
 export const BODY_MAX = 2000;
 export const postLink = (id: string) => `${window.location.origin}/post/${encodeURIComponent(id)}`;
+const PREVIEW_COMMENTS = 2; // like Instagram: the latest two under the post, the rest behind "View all"
 
 /** Copies text to the clipboard; falls back to a hidden textarea where the clipboard API is blocked. */
 export async function copyText(text: string): Promise<boolean> {
@@ -77,112 +79,190 @@ function EditForm({ post, onDone }: { post: Post; onDone: (p?: Post) => void }) 
   );
 }
 
-type Props = { post: Post; meId?: string; isAdmin: boolean; onChange: (p: Post) => void; onRemoved: (id: string) => void; single?: boolean };
+/** Post text. Long captions fold to a few lines with "more", like Instagram. */
+function Caption({ post, lines, author }: { post: Post; lines: number; author: boolean }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  const [long, setLong] = useState(false);
+  useLayoutEffect(() => { const el = ref.current; if (el && !open) setLong(el.scrollHeight > el.clientHeight + 2); }, [post.body, open]);
+  if (!post.body) return null;
+  return (
+    <div className="caption">
+      <p ref={ref} id={`b-${post.id}`} className={"post-body" + (open ? "" : " clamp")} style={{ ["--lines" as string]: lines }}>
+        {author && <b className="caption-who" aria-hidden="true">{post.author.name} </b>}<Linkified text={post.body} />
+      </p>
+      {long && !open && <button type="button" className="textbtn more-btn" aria-expanded={false} aria-controls={`b-${post.id}`} onClick={() => setOpen(true)}>more<span className="sr"> of this post</span></button>}
+    </div>
+  );
+}
 
-export const PostCard = forwardRef<HTMLElement, Props>(function PostCard({ post, meId, isAdmin, onChange, onRemoved, single }, ref) {
-  const [showComments, setShowComments] = useState(single || (post.comment_count > 0 && post.comment_count <= 2));
+type Props = {
+  post: Post; meId?: string; meName?: string; isAdmin: boolean; single?: boolean;
+  /** Change this post in the list. Always an updater, so quick actions in a row never overwrite each other. */
+  onChange: (fn: (p: Post) => Post) => void;
+  /** The post is gone. In the feed this is instant; the returned function puts it back if the server says no. */
+  onRemoved: (id: string) => (() => void) | void;
+};
+
+let tempIds = 0;
+const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+export const PostCard = forwardRef<HTMLElement, Props>(function PostCard({ post, meId, meName, isAdmin, onChange, onRemoved, single }, ref) {
+  const [expanded, setExpanded] = useState(!!single);
+  const [composing, setComposing] = useState(!!single);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [burst, setBurst] = useState(0);
+  const [popKey, setPopKey] = useState(0);
   const confirm = useConfirm();
   const toast = useToast();
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const mine = post.author.id === meId;
+  const pending = post.id.startsWith("tmp-");
 
+  const toggle = (p: Post): Post => ({ ...p, liked_by_me: !p.liked_by_me, like_count: Math.max(0, p.like_count + (p.liked_by_me ? -1 : 1)) });
   const like = async () => {
-    const prev = post;
-    onChange({ ...post, liked_by_me: !post.liked_by_me, like_count: post.like_count + (post.liked_by_me ? -1 : 1) }); // instant; the server's answer replaces it
-    try { const r = await feed.like(post.id); onChange({ ...prev, ...r }); } catch (e) { onChange(prev); toast.error(errText(e)); }
+    if (pending) return;
+    if (!post.liked_by_me) setPopKey((k) => k + 1);
+    onChange(toggle); // instant; the server's answer replaces it, and a failure turns it back
+    try { const r = await feed.like(post.id); onChange((p) => ({ ...p, ...r })); } catch (e) { onChange(toggle); toast.error(errText(e)); }
   };
+  // Double tap / double click on the media: like (never unlike), with a heart burst.
+  const doubleLike = () => {
+    if (!reduceMotion()) setBurst((b) => b + 1);
+    if (!post.liked_by_me) void like();
+  };
+  const tapText = useDoubleTap(doubleLike);
+
   const comment = async (e: FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
-    setBusy(true);
-    try { const c = await feed.comment(post.id, text.trim()); onChange({ ...post, comments: [...post.comments, c], comment_count: post.comment_count + 1 }); setText(""); setShowComments(true); }
-    catch (e2) { toast.error(errText(e2)); } finally { setBusy(false); }
+    const body = text.trim();
+    if (!body || pending) return;
+    const temp: Comment = { id: `tmp-c${++tempIds}`, author: { id: meId ?? "", name: meName ?? "You" }, body, created_at: new Date().toISOString() };
+    onChange((p) => ({ ...p, comments: [...p.comments, temp], comment_count: p.comment_count + 1 }));
+    setText(""); setExpanded(true);
+    try {
+      const c = await feed.comment(post.id, body);
+      onChange((p) => ({ ...p, comments: p.comments.map((x) => (x.id === temp.id ? c : x)) }));
+    } catch (e2) {
+      onChange((p) => ({ ...p, comments: p.comments.filter((x) => x.id !== temp.id), comment_count: p.comment_count - 1 }));
+      setText((t) => t || body); toast.error(errText(e2, "Your comment was not sent."));
+    }
   };
-  const removeComment = async (id: string) => {
+  const removeComment = async (c: Comment) => {
     if (!(await confirm({ title: "Delete this comment?", body: "It is removed for everyone.", confirm: "Delete comment", danger: true }))) return;
-    try { await feed.removeComment(id); onChange({ ...post, comments: post.comments.filter((c) => c.id !== id), comment_count: post.comment_count - 1 }); toast.success("Comment deleted."); }
-    catch (e) { toast.error(errText(e)); }
+    const at = post.comments.findIndex((x) => x.id === c.id);
+    onChange((p) => ({ ...p, comments: p.comments.filter((x) => x.id !== c.id), comment_count: p.comment_count - 1 }));
+    try { await feed.removeComment(c.id); toast.success("Comment deleted."); }
+    catch (e) {
+      onChange((p) => { const cs = [...p.comments]; cs.splice(Math.max(0, at), 0, c); return { ...p, comments: cs, comment_count: p.comment_count + 1 }; });
+      toast.error(errText(e));
+    }
   };
   const remove = async () => {
     if (!(await confirm({ title: "Delete this post?", body: "The post, its likes and its comments are removed for everyone. This cannot be undone.", confirm: "Delete post", danger: true }))) return;
-    try { await feed.remove(post.id); toast.success("Post deleted."); onRemoved(post.id); } catch (e) { toast.error(errText(e)); }
+    if (single) {
+      try { await feed.remove(post.id); toast.success("Post deleted."); onRemoved(post.id); } catch (e) { toast.error(errText(e)); }
+      return;
+    }
+    const restore = onRemoved(post.id);
+    try { await feed.remove(post.id); toast.success("Post deleted."); } catch (e) { restore?.(); toast.error(errText(e, "The post was not deleted.")); }
   };
   const copy = async () => { (await copyText(postLink(post.id))) ? toast.success("Link to the post copied.") : toast.error("Could not copy. The link is " + postLink(post.id)); };
-  const openComments = () => { setShowComments(true); setTimeout(() => document.getElementById(`c-${post.id}`)?.focus(), 0); };
+  const openComments = () => { setComposing(true); setTimeout(() => document.getElementById(`c-${post.id}`)?.focus(), 0); };
 
-  const items: MenuItem[] = [{ label: "Copy link", icon: "copy", onSelect: copy }];
+  const items: MenuItem[] = [{ label: "Copy link", icon: "copy", onSelect: copy, instant: true }];
   if (!single) items.push({ label: "Open post", icon: "external", onSelect: async () => { if (hasUnsaved() && !(await confirm({ title: "Leave without saving?", body: "You have changes on this page that are not saved yet. If you leave now, they are lost.", confirm: "Leave page", cancel: "Stay on this page", danger: true }))) return; clearUnsaved(); navigate(`/post/${post.id}`); } });
-  if (mine) items.push({ label: "Edit post", icon: "edit", onSelect: () => setEditing(true) });
-  if (mine || isAdmin) items.push({ label: "Delete post", icon: "trash", onSelect: remove, danger: true });
+  if (mine && !pending) items.push({ label: "Edit post", icon: "edit", onSelect: () => setEditing(true) });
+  if ((mine || isAdmin) && !pending) items.push({ label: "Delete post", icon: "trash", onSelect: remove, danger: true });
+
+  const heart = burst > 0 && <span key={burst} className="heart-burst" aria-hidden="true" onAnimationEnd={() => setBurst(0)}><Icon name="heart" size={96} filled strokeWidth={1.5} /></span>;
+  const hasMedia = !!post.url;
+  const shown = expanded ? post.comments : post.comments.slice(-PREVIEW_COMMENTS);
+  const hidden = post.comment_count - shown.length;
 
   return (
-    <article ref={ref} className="card post" aria-labelledby={`p-${post.id}`} tabIndex={-1} data-post={post.id}>
+    <article ref={ref} className={"card post" + (pending ? " is-pending" : "")} aria-labelledby={`p-${post.id}`} aria-busy={pending || undefined} tabIndex={-1} data-post={post.id}>
       <header className="post-head">
         <Avatar name={post.author.name} />
         <div className="post-who">
           <b id={`p-${post.id}`}>{post.author.name}</b>
           <span className="meta">
-            {single ? <Time iso={post.created_at} /> : <Link to={`/post/${post.id}`} className="meta-link"><Time iso={post.created_at} /><span className="sr">, open post</span></Link>}
+            {pending ? "Posting" : single ? <Time iso={post.created_at} /> : <Link to={`/post/${post.id}`} className="meta-link"><Time iso={post.created_at} /><span className="sr">, open post</span></Link>}
             {post.edited_at && <span title={`Edited ${fullDate(post.edited_at)}`}> · edited</span>}
           </span>
         </div>
         <div ref={menuRef}><Menu label={`Post actions for ${post.author.name}'s post`} items={items} /></div>
       </header>
       {editing
-        ? <EditForm post={post} onDone={(p) => { setEditing(false); if (p) onChange({ ...post, ...p }); setTimeout(() => menuRef.current?.querySelector("button")?.focus(), 0); }} />
-        : (
-          <>
-            {post.body && <p className="post-body"><Linkified text={post.body} /></p>}
-            {post.url && <LinkPreview url={post.url} />}
-          </>
-        )}
-      <div className="post-stats">
-        <span>{plural(post.like_count, "like")}</span>
-        <button type="button" className="textbtn" onClick={() => setShowComments((s) => !s)} aria-expanded={showComments}>{plural(post.comment_count, "comment")}</button>
-      </div>
-      <div className="post-actions">
-        <button type="button" className={"act" + (post.liked_by_me ? " on" : "")} aria-pressed={post.liked_by_me} onClick={like}><Icon name="heart" />Like</button>
-        <button type="button" className="act" onClick={openComments}><Icon name="comment" />Comment</button>
-        <button type="button" className="act" onClick={copy}><Icon name="copy" />Copy link</button>
-      </div>
-      {showComments && (
-        <div className="comments">
-          {post.comment_count > post.comments.length && (
-            single ? <p className="meta">Showing the latest {post.comments.length} of {post.comment_count} comments.</p>
-              : <p className="meta">Showing the latest {post.comments.length} of {post.comment_count}. <Link to={`/post/${post.id}`}>See all comments</Link></p>
+        ? <EditForm post={post} onDone={(p) => { setEditing(false); if (p) onChange((x) => ({ ...x, ...p })); setTimeout(() => menuRef.current?.querySelector("button")?.focus(), 0); }} />
+        : hasMedia
+          ? (
+            <>
+              <LinkPreview url={post.url!} onDouble={doubleLike} overlay={heart} />
+              <Caption post={post} lines={single ? 40 : 3} author />
+            </>
+          )
+          : (
+            <div className="post-text media" onClick={tapText}>
+              <Caption post={post} lines={single ? 40 : 10} author={false} />
+              {heart}
+            </div>
           )}
-          {post.comments.map((c) => (
-            <div key={c.id} className="comment">
+      <div className="post-actions">
+        <button type="button" className={"act" + (post.liked_by_me ? " on" : "")} aria-pressed={post.liked_by_me} aria-label="Like" title={post.liked_by_me ? "Unlike" : "Like"} onClick={like} disabled={pending}>
+          <span key={popKey} className={popKey ? "like-pop" : undefined}><Icon name="heart" size={22} filled={post.liked_by_me} /></span>
+        </button>
+        <button type="button" className="act" aria-label="Comment" title="Comment" onClick={openComments} disabled={pending}><Icon name="comment" size={22} /></button>
+        <button type="button" className="act" aria-label="Copy link" title="Copy link" onClick={copy} disabled={pending}><Icon name="send" size={21} /></button>
+      </div>
+      <p className="post-stats">
+        {post.like_count > 0
+          ? <span key={post.like_count} className="count-anim tnum">{plural(post.like_count, "like")}</span>
+          : <span className="first-like">Be the first to like this</span>}
+        {post.comment_count > 0 && <span className="meta"> · {plural(post.comment_count, "comment")}</span>}
+      </p>
+      {(shown.length > 0 || composing || hidden > 0) && (
+        <div className="comments">
+          {hidden > 0 && (
+            !expanded && post.comments.length > shown.length
+              ? <button type="button" className="textbtn view-all" aria-expanded={false} onClick={() => { setExpanded(true); setComposing(true); }}>View all {post.comment_count} comments</button>
+              : <p className="meta">{single ? `Showing the latest ${post.comments.length} of ${post.comment_count} comments.` : <>Showing the latest {post.comments.length} of {post.comment_count}. <Link to={`/post/${post.id}`}>See all comments</Link></>}</p>
+          )}
+          {shown.map((c) => (
+            <div key={c.id} className={"comment" + (c.id.startsWith("tmp-") ? " is-pending" : "")}>
               <Avatar name={c.author.name} size="sm" />
               <div className="comment-bubble">
-                <div className="comment-head"><b>{c.author.name}</b><span className="meta"><Time iso={c.created_at} /></span>
-                  {(c.author.id === meId || isAdmin) && <button type="button" className="textbtn danger" onClick={() => removeComment(c.id)}>Delete<span className="sr"> comment by {c.author.name}</span></button>}
+                <p><b>{c.author.name}</b> <Linkified text={c.body} /></p>
+                <div className="comment-meta">
+                  {c.id.startsWith("tmp-") ? <span>Sending</span> : <Time iso={c.created_at} />}
+                  {(c.author.id === meId || isAdmin) && !c.id.startsWith("tmp-") && <button type="button" className="textbtn danger" onClick={() => removeComment(c)}>Delete<span className="sr"> comment by {c.author.name}</span></button>}
                 </div>
-                <p><Linkified text={c.body} /></p>
               </div>
             </div>
           ))}
-          <form className="comment-form" onSubmit={comment}>
-            <label className="sr" htmlFor={`c-${post.id}`}>Write a comment</label>
-            <input id={`c-${post.id}`} placeholder="Write a comment" maxLength={1000} value={text} onChange={(e) => setText(e.target.value)} />
-            <button className="btn sm" disabled={busy || !text.trim()}>{busy ? "Sending" : "Send"}</button>
-          </form>
+          {(composing || shown.length > 0) && (
+            <form className="comment-form" onSubmit={comment}>
+              <label className="sr" htmlFor={`c-${post.id}`}>Write a comment</label>
+              <input id={`c-${post.id}`} placeholder="Add a comment" maxLength={1000} value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" enterKeyHint="send" />
+              <button className="send-btn" disabled={!text.trim() || pending}>Send</button>
+            </form>
+          )}
         </div>
       )}
     </article>
   );
 });
 
-export function PostSkeleton() {
+/** Same shape and size as a real post (header, 16:9 media, actions, two lines), so nothing jumps when posts arrive. */
+export function PostSkeleton({ media = true }: { media?: boolean }) {
   return (
-    <div className="card post">
+    <div className="card post post-skel" aria-hidden="true">
       <div className="post-head"><Skeleton w={36} h={36} r={999} /><div className="grow"><Skeleton w={140} /><Skeleton w={80} h={12} style={{ marginTop: 6 }} /></div></div>
-      <Skeleton w="100%" style={{ marginTop: 16 }} /><Skeleton w="85%" style={{ marginTop: 8 }} /><Skeleton w="100%" h={120} r={10} style={{ marginTop: 16 }} />
+      {media ? <span className="skel media-skel" /> : <><Skeleton w="100%" style={{ marginTop: 14 }} /><Skeleton w="70%" style={{ marginTop: 8 }} /></>}
+      <div className="skel-actions"><Skeleton w={24} h={24} r={6} /><Skeleton w={24} h={24} r={6} /><Skeleton w={24} h={24} r={6} /></div>
+      <Skeleton w={64} h={12} /><Skeleton w="88%" style={{ marginTop: 8 }} />
     </div>
   );
 }
-
