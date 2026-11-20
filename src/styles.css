@@ -1208,3 +1208,10 @@ details.week:not([open]) { margin-bottom: var(--s-3); }
 :root[data-brand="ff"] .reminder-alert { border-left-width: 5px; }
 @media (max-width: 767px) { .reminder-alert { left: 12px; right: 12px; width: auto; } }
 @media print { .reminder-alert { display: none !important; } }
+
+/* ---- Admin: form and demo data panels in the side column */
+.pg-form { display: flex; flex-direction: column; gap: var(--s-4); }
+.demo-panel { display: flex; flex-direction: column; gap: var(--s-3); border-top-color: var(--warning); }
+.demo-panel .meta { margin: 0; }
+.demo-state { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; color: var(--success); }
+.demo-panel input[type="file"] { padding: 8px; font-size: var(--fs-sm); }

@@ -22,7 +22,7 @@ export function NotificationBell() {
     try {
       const r = await notifications.list(); setItems(r.items); setUnread(r.unread);
       // A reminder you have not seen yet: show it on screen (once per reminder), and as a desktop alert if you allowed them.
-      const fresh = r.items.find((n) => !n.read && !seen().has(n.id));
+      const fresh = r.items.find((n) => !n.read && n.kind === "daily_missed" && !seen().has(n.id)); // the on-screen alert is for your own missed days
       if (fresh) {
         markSeen(fresh.id); setAlert(fresh);
         if ("Notification" in window && Notification.permission === "granted") {
@@ -81,7 +81,7 @@ export function NotificationBell() {
               {items.map((n) => (
                 <li key={n.id}>
                   <button type="button" className={"menu-item bell-item" + (n.read ? "" : " unread")} onClick={() => void go(n)}>
-                    <Icon name="daily" size={16} />
+                    <Icon name={n.kind === "week_submitted" ? "check" : "daily"} size={16} />
                     <span className="grow"><span className="bell-title">{n.title}</span><span className="meta">{n.body}</span><span className="meta">{ago(n.created_at)}</span></span>
                     {!n.read && <span className="dot" aria-label="Unread" />}
                   </button>

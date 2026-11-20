@@ -6,6 +6,7 @@ import { fmtDay, programs, ROLE_LABEL, type ProgramSummary } from "../lib/v3";
 import { Icon } from "../components/Icon";
 import { CardSkeleton, EmptyState, ErrorState, Loading } from "../components/States";
 import { useToast } from "../components/Toast";
+import { DemoPanel } from "../components/DemoPanel";
 
 /** Admin: every program, and create a new one. */
 export default function Programs() {
@@ -72,7 +73,8 @@ export default function Programs() {
               </div>
             )}
         </section>
-        <form className="pg-split-side panel-accent" onSubmit={create} aria-labelledby="pc-h" noValidate>
+        <div className="pg-split-side">
+        <form className="panel-accent pg-form" onSubmit={create} aria-labelledby="pc-h" noValidate>
           <h2 id="pc-h" className="pg-h2">New program</h2>
           <div className="field"><label htmlFor="pc-name">Name</label><input id="pc-name" maxLength={80} placeholder="e.g. DevOps Training Program" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!err || undefined} /></div>
           <div className="field"><label htmlFor="pc-desc">Description <span className="hint">optional</span></label><textarea id="pc-desc" rows={3} maxLength={600} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
@@ -81,6 +83,8 @@ export default function Programs() {
           <button className="btn block lg" disabled={busy}><Icon name="plus" size={16} />{busy ? "Creating" : "Create program"}</button>
           <p className="meta">After creating, open Manage to invite the program's coordinator.</p>
         </form>
+        <DemoPanel onChange={() => void load()} />
+        </div>
       </div>
     </div>
   );
