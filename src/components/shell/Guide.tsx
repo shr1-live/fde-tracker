@@ -54,8 +54,8 @@ function stepsFor(page: string, w: Who): Step[] {
         { target: ".ts-add-row .btn, .ts-day-view > .btn", title: "Add your tasks", body: "One row per thing you work on: a topic, a practical task or a project." },
         { target: ".ts-grid tbody td, .ts-day-fields", title: "Hours and a note", body: "Type hours as 2, 2.5 or 2:30 and add a short note on what you did. Totals add up per day and per week." },
         { target: ".ts-views", title: "Week or day", body: "Week shows the whole sheet; Day is quicker for filling in just today." },
-        w.manager && { target: ".ts-person", title: "See someone's sheet", body: "Open any member's timesheet, read-only." },
-        { target: ".ts-foot", title: "Save and submit", body: "Save as you go. Submit the week when it is complete; changing it later makes it a draft again." },
+        w.manager && { target: ".ts-person", title: "See someone's daily log", body: "Open any member's daily log, read-only. When someone submits a week, you get a notification." },
+        { target: ".ts-foot", title: "Save and submit", body: "Save as you go. Submit the week when it is complete: your coordinator gets a notification. Changing it later makes it a draft again." },
       ] : [];
       case "status": return [{ title: "Program status", body: "Per day of the plan: what you covered, your rating and whether it is completed." }];
       case "reports": return [
