@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import type { Field, Values } from "../lib/v3";
+import { Linkified } from "./Linkified";
 
 /** The (i) button next to a field: shows the description the coordinator wrote for it. */
 export function InfoButton({ label, text }: { label: string; text: string | null }) {
@@ -22,28 +23,30 @@ export function FormFields({ fields, values, onChange, errors, idPrefix, disable
 }) {
   const set = (k: string, v: string) => onChange({ ...values, [k]: v });
   return (
-    <div className="ffields">
+    <div className="fields">
       {fields.map((f) => {
         const id = `${idPrefix}-${f.key}`;
         const v = values[f.key] ?? "";
         const err = errors[f.key];
         const common = { id, disabled, "aria-invalid": !!err || undefined, "aria-describedby": err ? `${id}-err` : undefined };
         return (
-          <div key={f.key} className="ffield">
-            <div className="flabel">
-              <label htmlFor={id}>{f.label}{f.required && <span className="req" aria-label="required"> *</span>}</label>
+          <div key={f.key} className={"field" + (err ? " has-error" : "")}>
+            <div className="label-row">
+              <label htmlFor={id}>{f.label}{f.required && <span className="req" aria-hidden="true"> *</span>}{f.required && <span className="sr"> (required)</span>}</label>
               <InfoButton label={f.label} text={f.description} />
             </div>
             {f.type === "longtext" ? <textarea {...common} rows={4} maxLength={4000} value={String(v)} onChange={(e) => set(f.key, e.target.value)} />
               : f.type === "rating" ? (
-                <select {...common} value={String(v)} onChange={(e) => set(f.key, e.target.value)}>
-                  <option value="">Choose 1 to 5</option>
-                  {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}: {RATING_HINT[n - 1]}</option>)}
-                </select>
+                <div className="select-wrap">
+                  <select {...common} value={String(v)} onChange={(e) => set(f.key, e.target.value)}>
+                    <option value="">Choose 1 to 5</option>
+                    {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}: {RATING_HINT[n - 1]}</option>)}
+                  </select>
+                </div>
               ) : f.type === "number" ? <input {...common} type="number" min={0} max={1000} step="0.5" value={String(v)} onChange={(e) => set(f.key, e.target.value)} />
               : f.type === "url" ? <input {...common} type="url" inputMode="url" placeholder="https://" maxLength={500} value={String(v)} onChange={(e) => set(f.key, e.target.value)} />
               : <input {...common} type="text" maxLength={500} value={String(v)} onChange={(e) => set(f.key, e.target.value)} />}
-            {err && <p id={`${id}-err`} className="small err">{err}</p>}
+            {err && <p id={`${id}-err`} className="field-error">{err}</p>}
           </div>
         );
       })}
@@ -51,14 +54,14 @@ export function FormFields({ fields, values, onChange, errors, idPrefix, disable
   );
 }
 
-/** Read-only view of saved values ("Label: value" lines). */
+/** Read-only view of saved values ("Label: value" lines). Links in the text are clickable. */
 export function ValuesView({ fields, values }: { fields: Field[]; values: Values }) {
   const shown = fields.filter((f) => values[f.key] !== undefined && String(values[f.key]).trim() !== "");
-  if (!shown.length) return <p className="small muted">Nothing filled in.</p>;
+  if (!shown.length) return <p className="meta">Nothing filled in.</p>;
   return (
     <dl className="vals">
       {shown.map((f) => (
-        <div key={f.key}><dt>{f.label}</dt><dd className="wrap">{f.type === "url" && /^https:\/\//.test(String(values[f.key])) ? <a href={String(values[f.key])} target="_blank" rel="noreferrer noopener">{String(values[f.key])}</a> : String(values[f.key])}</dd></div>
+        <div key={f.key}><dt>{f.label}</dt><dd className="prewrap"><Linkified text={String(values[f.key])} /></dd></div>
       ))}
     </dl>
   );

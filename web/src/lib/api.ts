@@ -17,6 +17,10 @@ export class ApiError extends Error {
 export type CallOptions = { ownKey?: boolean; signal?: AbortSignal };
 
 const SIGN_IN = "Sign in with your office account to use this.";
+export const SESSION_EXPIRED = "Your session has expired. Sign in again.";
+
+/** Tells the app shell that the sign-in is no longer valid, so it can ask the person to sign in again. */
+function expired() { if (typeof window !== "undefined") window.dispatchEvent(new Event("fde:session-expired")); }
 
 /** The sign-in token for the API: the Supabase session, or (dev builds only) a test account's token. */
 async function bearer(): Promise<string> {
@@ -27,6 +31,7 @@ async function bearer(): Promise<string> {
     const t = data.session?.access_token;
     if (t) return t;
   }
+  expired();
   throw new ApiError(401, SIGN_IN);
 }
 
@@ -49,6 +54,7 @@ async function send(method: string, path: string, body?: BodyInit, json = false,
 }
 
 async function failure(res: Response): Promise<ApiError> {
+  if (res.status === 401) { expired(); return new ApiError(401, SESSION_EXPIRED, "expired"); }
   const body = await res.json().catch(() => null);
   const header = Number(res.headers.get("Retry-After"));
   const after = typeof body?.retry_after_seconds === "number" ? body.retry_after_seconds : Number.isFinite(header) && header > 0 ? header : undefined;
