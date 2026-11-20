@@ -7,10 +7,11 @@ The product was built by one person (the owner) working with Claude Code and a s
 | Stage | What AI did | Example from this project |
 |---|---|---|
 | Define | Turned the lead's review into requirements | The lead's walkthrough video was in Hindi. It was transcribed locally with Whisper, key frames were pulled with ffmpeg, and the agent wrote the requirements and the contract from the transcript and screenshots. |
-| Design | Planned data, API and screens before code | The `architect` agent split V3 into tickets. The contract [api/docs/PROGRAMS-V3.md](../api/docs/PROGRAMS-V3.md) was written first so the API and web agents built against the same shapes. [DESIGN.md](../DESIGN.md) was written before the restyle (tokens, components, accessibility rules). |
+| Design | Planned data, API and screens before code | The `architect` agent split V3 into tickets. The contract [PROGRAMS-V3.md](https://github.com/shr1-live/fde-tracker-apiv2/blob/main/docs/PROGRAMS-V3.md) was written first so the API and web agents built against the same shapes. [DESIGN.md](https://github.com/shr1-live/fde-tracker-appv2/blob/main/DESIGN.md) was written before the restyle (tokens, components, accessibility rules). |
 | Build | Wrote the code in small, reviewable steps | `backend-dev` built migrations 010 and 011, services and endpoints. `frontend-dev` built the pages; `ui-ux-designer` critiqued screenshots. |
 | Test | Wrote and ran tests; drove the browser | `qa-engineer` wrote xUnit tests (264 pass) and ran Playwright + axe checks against a mocked API and the real API. |
 | Review | Read-only review agents before every push | `code-reviewer` and `security-reviewer` read the diff. One review found that a coordinator invite could re-approve a rejected user. |
+| Split | Planned and carried out the move to two repositories | Agents planned the split. Scripts did the history-preserving move (subtree split and renames). The build and tests were run in both repositories to check it. |
 | Document | Wrote README, contract, design system and these docs | `docs-writer` keeps docs in plain English with limits stated. |
 
 ## Context engineering
@@ -21,8 +22,8 @@ The agents only know what they are given. These files give them the same context
 |---|---|---|
 | `CLAUDE.md` | No (local) | The project rules read at the start of every session: git flow, free tiers, no secrets, security rules, "verify before saying deployed". A shareable copy is [AGENTS.md](../AGENTS.md). |
 | `TASKS.md` | No (local) | The live plan: open and done tasks, each with what "done" means and one line of proof. Read before work, updated after. Stops the agent from forgetting or redoing work between sessions. |
-| [DESIGN.md](../DESIGN.md) | Yes | The design system. Agents change tokens, not pages, and check contrast against it. |
-| [api/docs/PROGRAMS-V3.md](../api/docs/PROGRAMS-V3.md) | Yes | The API contract. Both the API and web agents build against it, so they agree without seeing each other's code. |
+| [DESIGN.md](https://github.com/shr1-live/fde-tracker-appv2/blob/main/DESIGN.md) | Yes (frontend repository) | The design system. Agents change tokens, not pages, and check contrast against it. |
+| [PROGRAMS-V3.md](https://github.com/shr1-live/fde-tracker-apiv2/blob/main/docs/PROGRAMS-V3.md) | Yes (backend repository) | The API contract. Both the API and web agents build against it, so they agree without seeing each other's code. |
 | `.claude/agents/*.md` | Yes | Ten agent definitions with a narrow job and the tools they may use. |
 | Memory notes | No (local) | Short notes the owner asked to keep: commit account, sheet format, "few big pushes", "finish to working". |
 
@@ -37,7 +38,7 @@ The agents only know what they are given. These files give them the same context
 | `qa-engineer` | xUnit, Playwright + axe, live checks | 264 API tests; 166 mocked browser checks; 106 real-API checks |
 | `code-reviewer` | Read-only diff review | Rejected-user finding; small fixes before push |
 | `security-reviewer` | Read-only security review | Auth, IDOR, injection, secrets, CSP checks |
-| `devops` | Vercel and Render setup, live checks | Root `vercel.json` and `render.yaml`; health and header checks |
+| `devops` | Vercel and Render setup, live checks | `vercel.json` (frontend repository) and `render.yaml` (backend repository); health and header checks |
 | `docs-writer` | Docs | README, these docs |
 | `task-manager` | TASKS.md, branches, PR links | Task list and compare links for the owner |
 
@@ -75,5 +76,6 @@ The agents only know what they are given. These files give them the same context
 | 6 | Merging V3 into the training repos removed features the owner still used every day from the live training site. | The owner noticed on the live site. | The training repos were restored from their backup branch, and V3 moved to this separate repo with its history. Rule added: "never mix the two products". |
 | 7 | Test data with underscores in names broke the search test that checks `_` is not a wildcard, because the seed data matched too. | The test failed. | Test data for search tests avoids the characters under test. |
 | 8 | The lead's walkthrough video was in Hindi, so the agent could not use it directly. | Found at the start. | Transcribed locally with Whisper; frames pulled with ffmpeg; requirements built from both. Nothing was sent to an outside service. |
+| 9 | A git login test with prompts turned off ("no prompt") reported that pushing was impossible, because the test also disabled the credential helper. | The real push worked. | Test the real operation, not a proxy for it. |
 
-Items 3, 4, 5, 7 and 8 come from the working sessions and are not all visible in the git history. Items 1, 2 and 6 are visible in commits `c62bbcf`, `58fffc8` and `22558b6` (in the earlier web repo).
+Items 3, 4, 5, 7, 8 and 9 come from the working sessions and are not all visible in the git history. Items 1, 2 and 6 are visible in commits `c62bbcf`, `58fffc8` and `22558b6` (in the earlier web repo).

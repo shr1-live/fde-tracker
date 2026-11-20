@@ -7,3 +7,5 @@ obj
 .env
 .env.local
 *.tsbuildinfo
+.vercel
+.vite

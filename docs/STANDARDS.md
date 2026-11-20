@@ -1,23 +1,11 @@
 # Engineering standards
 
-These are the rules the code follows today, not goals.
+These are the rules the code follows today, not goals. They cover the frontend. The backend rules are in the [backend repository](https://github.com/shr1-live/fde-tracker-apiv2/blob/main/docs/STANDARDS.md).
 
-## API (`api/`)
+## Web app (this repository)
 
-- **Layers:** Controllers -> Services -> Repositories.
-  - Controllers handle HTTP only: read the request, call a service, return a view model.
-  - Services hold the rules: validation, limits, per-program role checks, transactions.
-  - Repositories hold all SQL (Dapper). One class per table group.
-- **SQL:** parameterised only. No string-built SQL with user input. Search treats `%` and `_` as plain characters.
-- **JSON:** snake_case in and out. Unknown fields are refused. Errors use `{ "error": "..." }` and never leak internals.
-- **Validation:** every input is checked on the server (lengths, types, https-only links, date ranges), even when the web app checks it too.
-- **Migrations:** numbered SQL files in `api/migrations/`, run once each at start-up. Each is idempotent (`if not exists`, guarded `alter`), turns RLS on and revokes the public roles for new tables.
-- **Tests:** xUnit integration tests against a real Postgres (Testcontainers). Every rule and every permission check gets a test.
-
-## Web (`web/`)
-
-- **Design tokens** live once, at the top of `web/src/styles.css`. Pages use tokens only. [DESIGN.md](../DESIGN.md) is the source of truth.
-- **API calls** go through one client module (`web/src/lib/`), which adds the token and handles errors.
+- **Design tokens** live once, at the top of `src/styles.css`. Pages use tokens only. [DESIGN.md](../DESIGN.md) is the source of truth.
+- **API calls** go through one client module (`src/lib/`), which adds the token and handles errors.
 - **Pages are lazy-loaded** so each page is its own chunk.
 - **Accessibility (WCAG 2.2 AA):**
   - a label on every control; words as well as colour for status;
@@ -27,13 +15,16 @@ These are the rules the code follows today, not goals.
   - light and dark mode; reduced motion respected.
 - **Checks before a PR:** `npx tsc --noEmit`, `npm run build`, browser check in light, dark and phone width.
 
+- **Links and text from users:** React escapes text; links are shown only when they are https; embeds only from `youtube-nocookie.com`.
+- **API contract:** the web app follows the [API contract](https://github.com/shr1-live/fde-tracker-apiv2/blob/main/docs/PROGRAMS-V3.md) in the backend repository. A contract change starts there.
+
 ## Git and delivery
 
 - New branch from `develop` for every change -> pull request into `develop` -> `develop` into `main` deploys.
 - Nobody (and no AI agent) commits straight to `develop` or `main`. The owner merges.
-- Few, big pushes. Every push starts a Vercel and Render build on free quotas, so work is committed locally and pushed once per finished, reviewed change.
+- Few, big pushes. Every push starts a Vercel build on a free quota, so work is committed locally and pushed once per finished, reviewed change.
 - Commit messages say what changed and why, in plain words.
-- Secrets never go in the repo. Only public settings go in `web/.env.production`.
+- Secrets never go in the repo. Only public build settings go in `.env.production`.
 
 ## Writing
 
