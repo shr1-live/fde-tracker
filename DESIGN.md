@@ -62,18 +62,35 @@ Weights: 400 body, 500 controls and labels, 600 titles and names. Never bold par
 - **Spacing** (4 px base): `--s-1` 4, `--s-2` 8, `--s-3` 12, `--s-4` 16, `--s-5` 20, `--s-6` 24, `--s-8` 32, `--s-10` 40, `--s-12` 48.
 - **Radius**: `--r-sm` 6 (inputs, buttons), `--r-md` 10 (cards, menus), `--r-lg` 14 (dialogs, landing card), `--r-full` (chips, avatars).
 - **Elevation**: `--shadow-xs` resting cards; `--shadow-sm` raised (active nav item, hovered card); `--shadow-md` menus, toasts; `--shadow-lg` dialogs. In dark mode shadows are deeper and every raised surface also has a 1 px border, because shadows barely show on dark backgrounds.
-- **Motion**: `--dur-fast` 120 ms (hover, press), `--dur` 180 ms (menus, toasts), `--dur-slow` 260 ms (drawer). Easing `--ease: cubic-bezier(.2,.8,.2,1)`. Under `prefers-reduced-motion: reduce` every transition and animation is reduced to near zero and skeletons stop shimmering.
+- **Motion** (one scale, ease-out): `--dur-fast` 150 ms (hover, press, tooltips), `--dur` 200 ms (menus, popovers, toasts, page fade-in, like count), `--dur-slow` 250 ms (drawer, side panel fold). Easing `--ease: cubic-bezier(.2,.8,.2,1)`. Only `opacity` and `transform` animate, so nothing shifts layout. The one exception is the 700 ms heart burst after a double tap (a celebration, not a UI transition). Under `prefers-reduced-motion: reduce` every transition and animation is reduced to near zero, the heart burst and page fade are off, smooth scrolling becomes a jump, and skeletons stop shimmering.
+- **Icons**: Lucide (`lucide-react`, pinned exact version, ISC licence), through `components/Icon.tsx` only (`<Icon name="heart" />`); pages never import the library directly. 2 px stroke (1.9 in the side panel), 16-22 px. Decorative (`aria-hidden`); the meaning is always in words or an `aria-label`.
 
 ## 3. App shell
 
-- **Sidebar** (256 px, `--surface`, right border): brand, **program switcher**, main navigation, and the account block at the bottom (avatar, name, email, theme switch, Sign out).
-  - The program switcher shows the current program (from the URL, otherwise the last one opened, otherwise the first) and the person's role in it. With more than one program it opens a list of programs. The navigation below it shows that program's pages: Plan, Daily status, Program status, Reports, and Manage and invite (coordinators and admin only).
-  - Feed is always first. The admin also gets Programs.
-  - Active item: `--accent-soft` fill, `--accent-soft-text` text, `aria-current="page"`.
-- **Top bar** (56 px, sticky, translucent `--bg` with blur): a menu button (phones only) and a breadcrumb ("FDE Training Program / Reports").
-- **Phones (< 900 px)**: the sidebar becomes a drawer that slides in over a scrim. Opening it moves focus into it; Esc, the scrim, the close button or picking a page closes it and returns focus to the menu button; the page behind is `inert` while it is open. No sideways scroll at 320 px and up.
-- **Content width**: feed and single post 680 px; other pages up to 1120 px; text blocks never wider than ~72 characters.
-- Route changes move focus to the page's main region so screen readers announce the new page.
+Industry-standard layout (Linear / Vercel / Notion on desktop, Instagram-style tab bar on phones).
+
+- **Side panel** (256 px, `--sidebar`, right border), top to bottom:
+  1. **Brand row**: mark + "FDE Tracker" (links to the feed).
+  2. **Program switcher**: the current program (from the URL, otherwise the last one opened, otherwise the first) with its tile and the person's role. It opens a popover listing their programs with role and a check on the current one; a search box appears from 6 programs; arrow keys move; the admin also gets "All programs". Links in it replace the popover's history entry.
+  3. **Navigation** in groups: Feed (with a count of new posts by others since the person last looked, polled every 2 minutes) and Programs (admin); then a section labelled with the program name: Plan, Daily status, Program status, Reports, Manage and invite (coordinators and admin).
+  4. **Account button** at the bottom (avatar, name, email). It opens a popover with name, email, Admin badge, the theme switch (System / Light / Dark) and Sign out. No loose controls in the panel.
+  - **Active item**: `--accent-soft` filled pill, `--accent-soft-text` text, accent icon, a 3 px accent bar on the panel's left edge, `aria-current="page"`.
+  - **Dev builds only**: a compact "Dev" row (Admin / Coord. / Member) above the account button; in the rail it moves into the account popover. Production builds render nothing.
+- **Icon rail** (desktop and tablet, 72 px): the top-bar button folds the panel to icons; the choice is remembered (`fde:sidebar`). With no choice yet the panel is a rail under 1200 px wide and full above. In the rail, labels become tooltips on hover and keyboard focus (they stay in the page for screen readers); popovers open beside the rail; section labels become a thin divider.
+- **Top bar** (56 px + top safe area, sticky, translucent `--topbar` with blur): the fold button (desktop) or the menu button (phones), a divider, and the breadcrumb ("FDE Training Program / Reports").
+- **Phones (< 768 px)**:
+  - **Bottom tab bar**: Feed, Plan, Status (daily status), Reports, More (opens the drawer). Icons in a 52 x 28 pill that fills with `--accent-soft` when active; 11 px labels; a red dot on Feed when there are new posts. It sits above the home indicator (`env(safe-area-inset-bottom)`), and the page and toasts leave room for it. With no program: Feed, Programs (admin), More.
+  - **Drawer**: the side panel slides in over a scrim. Focus moves in; Esc, the scrim, the X, a link or **Android Back** closes it; focus returns to the button that opened it; the page behind is `inert` and does not scroll.
+- **Back button rule** (`lib/layers.ts`): opening the drawer, a dialog, a post menu, the program switcher or the account menu adds a history entry for the same address, so Android Back (or the browser Back button) closes the top layer first instead of leaving the page. Closing a layer any other way removes that entry; an action that navigates or opens a dialog waits until it is gone.
+- **Content width**: feed and single post 680 px; other pages up to 1120 px; text blocks never wider than ~72 characters. On a 1920 px screen the content stays centred at those widths.
+- **Pages** fade in (200 ms, opacity and 4 px rise). Route changes move focus to the page's main region so screen readers announce the new page.
+
+### Devices
+
+- **iPhone / iPad Safari**: `viewport-fit=cover`; top bar, drawer, tab bar and page padding use `env(safe-area-inset-*)` for the notch and home indicator; heights use `100dvh` (with `100vh` fallback) so the Safari toolbar does not hide content; every input, select and textarea is 16 px on touch screens so Safari does not zoom on focus; `-webkit-tap-highlight-color: transparent` (every control has its own pressed state); hover effects on media and actions are wrapped in `@media (hover: hover)` so they never stick after a tap; media uses `touch-action: manipulation` so a double tap likes instead of zooming.
+- **Android Chrome**: the Back button closes layers first (above); `theme-color` follows light/dark.
+- **Touch**: 44 px targets (`pointer: coarse`); nothing is hover-only.
+- **Checked sizes**: 360, 375, 390, 412, 768, 1024, 1366, 1920 px wide with no sideways scroll on every page, plus iPhone 13, Pixel 7 and iPad emulation.
 
 ## 4. Components
 
@@ -87,25 +104,41 @@ Weights: 400 body, 500 controls and labels, 600 titles and names. Never bold par
 | **Tabs** | Segmented control (`.seg`) for switching views on one page (`aria-pressed`). Program page tabs (`.ptabs`) are links with an underline, shown on phones where the sidebar is hidden. |
 | **Table** | `.table` inside `.table-wrap` (scrolls sideways inside itself, focusable, labelled region). Sticky header row on `--surface-2`, 13 px cells, row hover, first column sticky in wide sheet reports. |
 | **Avatar** | Initials on a tinted circle; hue from the name, fixed lightness so contrast holds in both themes. 36 px in posts, 28 px in comments. Decorative (`aria-hidden`); the name is next to it. |
-| **Menu** | `Menu` component: icon button with `aria-haspopup="menu"`, items are `role="menuitem"`, arrow keys move, Esc closes and returns focus. |
+| **Menu** | `Menu` component: icon button with `aria-haspopup="menu"`, items are `role="menuitem"`, arrow keys move, Esc or Android Back closes and returns focus. An item that copies runs inside the tap (`instant`, for Safari's clipboard); others run once the menu's history entry is gone. |
+| **Popover** | `usePopover()` (program switcher, account menu): `.pop` panel, `--shadow-md`, 200 ms pop-in; a tap outside, Esc or Android Back closes it and returns focus. |
+| **Tooltip** | Only in the icon rail: the item's own label shown beside it on hover and keyboard focus (inverted colours). Elsewhere use `title` for extra detail. |
 | **Toast** | `useToast()`: bottom-right on desktop, bottom-centre on phones, `--shadow-md`. Success and info use `role="status"`; errors use `role="alert"` and stay 7 s. Use toasts for the result of an action (saved, deleted, copied). Keep validation messages inline next to the field. |
-| **Dialog** | `useConfirm()` built on `<dialog>` (`showModal`): focus trapped, Esc cancels, focus returns to the button that opened it. Title says the action; body says the consequence; destructive confirm button is `.btn.danger`. Never use `window.confirm`. |
+| **Dialog** | `useConfirm()` built on `<dialog>` (`showModal`): focus trapped, Esc or Android Back cancels, focus returns to the button that opened it. Title says the action; body says the consequence; destructive confirm button is `.btn.danger`. Never use `window.confirm`. |
 | **Empty state** | `EmptyState`: icon, one-line title, one sentence of what to do next, and the action button when there is one. |
-| **Loading** | `Skeleton` blocks in the shape of the real content (posts, day cards, table rows), inside an `aria-busy` region with a screen-reader "Loading" label. No spinners on full pages. |
+| **Loading** | `Skeleton` blocks in the shape and size of the real content (a post skeleton has the 16:9 media box, the action row and two lines), inside an `aria-busy` region with a screen-reader "Loading" label. No spinners on full pages. |
+| **Form card** (owner's favourite) | The pattern for forms and panels, e.g. "New program": `.card`, bold title + muted one-line subtitle, labelled fields with "(optional)" hints, a full-width primary button with an icon. Keep it; reuse it for new forms. |
 | **Error** | `ErrorState`: what failed in plain words plus "Try again". A 401 anywhere shows "Your session has expired" with "Sign in again". |
 
-## 5. Feed post anatomy
+## 5. Feed (Instagram style)
 
-1. **Header**: avatar, author name (600), meta line: relative time (`<time>` with the full date and time on hover via `title`) and "· edited" when `edited_at` is set. Right side: a "More" menu with Copy link, Open post, and (author) Edit, (author or admin) Delete.
-2. **Body**: 15 px text, line breaks kept, `https://` URLs turned into links (opened in a new tab with `rel="noopener noreferrer"`, shown as host + path, full URL on hover).
-3. **Attachment** (when the post has a link):
-   - **YouTube**: 16:9 thumbnail with a play button that plays the video in place (youtube-nocookie), and a footer row "YouTube · Open on YouTube".
-   - **Other link**: a preview card (site initial tile, site name, short URL, external-link icon). The whole card is one link that opens the page in a new tab.
-4. **Stats row**: "3 likes · 2 comments" (13 px, `--text-3`); the comment count toggles the comments.
-5. **Action bar**: Like (`aria-pressed`, accent when on), Comment, Copy link. Equal-width ghost buttons, 40 px high.
-6. **Comments**: oldest first, avatar 28 px, bubble on `--surface-2`, then the comment box.
+Post anatomy, top to bottom:
 
-Composer: avatar + auto-growing textarea with a character counter (appears once typing starts, amber in the last 200 characters, red at the limit), "Add a link" toggle, and the first `https://` URL in the text is picked up as the post's link when no separate link is given (shown as "Link found" under the box). The toolbar above the list has the search box (debounced), sort select (Newest / Most liked / Most discussed) and filter chips (All / Videos / Links / Text / My posts). Sort, filter and search live in the URL (`?sort=top&kind=video&q=rag`, `?mine=1`) so a view survives reload and can be shared. A single post lives at `/post/:id`.
+1. **Header**: avatar, author name (600), meta line: relative time (`<time>`, full date on hover) and "· edited". Right: a "More" menu with Copy link, Open post, and (author) Edit, (author or admin) Delete.
+2. **Media**, full width inside the card (edge to edge):
+   - **YouTube**: 16:9 thumbnail; a tap plays it in place (youtube-nocookie), a double tap likes the post (the play waits 260 ms to tell them apart; keyboard Enter plays at once). Under it a slim row "YouTube · Open on YouTube".
+   - **Other link**: a rich card: a cover tinted with the site's hue (the avatar formula, so contrast holds in both themes) showing the site tile and name, then the short address and an open icon. The whole card is one link (new tab).
+   - **Text only**: the words are the media (17 px); a double tap / double click likes it.
+3. **Action row**: icon buttons Like (heart, filled accent when liked, pops 1.28x on like), Comment, Copy link (paper plane). Each has an `aria-label` and a tooltip; `aria-pressed` on Like. 40 px (44 px touch).
+4. **Likes line**: "3 likes" (600) with "· 2 comments"; the number slides in when it changes. With no likes: "Be the first to like this".
+5. **Caption** (when there is media): author name in bold, then the text; long captions fold to 3 lines with "more".
+6. **Comments**: the latest 2 under the post, "View all N comments" opens the whole thread in place (and "See all comments" links to the post page when the server sent only the latest ones). Compact lines: small avatar, **name** text, then time and Delete. Then a rounded "Add a comment" box with a text Send button inside it.
+
+**Double tap to like**: double tap (touch) or double click (mouse) on the media likes the post (never unlikes) and shows a white heart burst over the video (accent heart on text posts). The Like button stays for everyone else. Reduced motion: no burst.
+
+**Optimistic updates everywhere**: like, comment, delete comment, delete post and new post change the screen at once; the server's answer replaces the guess, and a failure puts things back and says why in a toast (a failed comment or post puts the text back in its box). A new post shows at the top marked "Posting" until it is saved. Updates use updater functions so quick actions in a row never overwrite each other.
+
+**Loading more**: infinite scroll with an `IntersectionObserver` 800 px before the end, with a visible "Show more posts" button kept as the fallback and for keyboard users (pressing it moves focus to the first new post; scrolling never moves focus). After an error the automatic loading stops and the button says "Try again". The end says "You are all caught up".
+
+**New posts pill**: every 60 s (and when the tab becomes visible again) the first page is fetched; like and comment counts update in place, and newer posts are *not* inserted. A "N new posts" pill with the authors' faces floats under the top bar (sticky, takes no space, so nothing shifts) and is announced politely; pressing it shows them and scrolls to the top.
+
+**Side-panel badge**: the newest post time shown on the feed is stored as "seen" in this browser; the Feed item shows how many posts by others are newer (9+ at most).
+
+Composer: avatar + auto-growing textarea with a character counter (appears once typing starts, amber in the last 200 characters, red at the limit), "Add a link" toggle, and the first `https://` URL in the text is picked up as the post's link when no separate link is given (shown as "Link found"). The toolbar has the search box (debounced), sort select (Newest / Most liked / Most discussed) and filter chips (All / Videos / Links / Text / My posts); on phones search and sort share one row and the chips scroll sideways in one row. Sort, filter and search live in the URL (`?sort=top&kind=video&q=rag`, `?mine=1`). A single post lives at `/post/:id` and shows all its comments.
 
 ## 6. Page layouts
 
@@ -129,4 +162,5 @@ Composer: avatar + auto-growing textarea with a character counter (appears once 
 - Live regions: toasts as above; the feed list is `aria-busy` while loading.
 - Reduced motion respected; no auto-playing media (YouTube plays only after a press).
 - Unsaved forms (daily status, day status, manage forms) warn before leaving the page or closing the tab.
-- Checked with axe-core (WCAG 2.0/2.1/2.2 A and AA rules) in light, dark and at 390 px: zero violations is the bar.
+- Gestures always have a visible alternative (double tap -> Like button; More tab -> menu button).
+- Checked with axe-core (WCAG 2.0/2.1/2.2 A and AA rules) in light and dark on phones (iPhone, Pixel), iPad and desktop, with the drawer, rail, popovers and dialogs open: zero violations is the bar.

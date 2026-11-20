@@ -30,7 +30,7 @@ export default function PostPage() {
       {state === "missing" && <EmptyState icon="inbox" title="This post is not here" action={<Link className="btn" to="/">Go to the feed</Link>}>It may have been deleted by its author.</EmptyState>}
       {state === "error" && <ErrorState title="Could not load the post" message={err} onRetry={load} />}
       {state === "ok" && post && (
-        <PostCard post={post} meId={me?.id} isAdmin={me?.role === "admin"} single onChange={setPost} onRemoved={() => navigate("/", { replace: true })} />
+        <PostCard post={post} meId={me?.id} meName={me?.display_name || me?.email?.split("@")[0]} isAdmin={me?.role === "admin"} single onChange={(fn) => setPost((p) => (p ? fn(p) : p))} onRemoved={() => { navigate("/", { replace: true }); }} />
       )}
     </div>
   );

@@ -3,13 +3,14 @@ import { Link, NavLink, Route, Routes, matchPath, useLocation, useNavigate } fro
 import { useStore } from "./lib/store";
 import { API_URL } from "./lib/api";
 import { useMe, type Me } from "./lib/useRole";
-import { ROLE_LABEL } from "./lib/v3";
 import { clearUnsaved, hasUnsaved } from "./lib/unsaved";
+import { closeLayer, openLayer } from "./lib/layers";
+import { useUnseenPosts } from "./lib/feedSeen";
 import Gate from "./pages/Gate";
-import ThemeSwitch from "./components/ThemeSwitch";
-import { Icon } from "./components/Icon";
-import { Avatar } from "./components/Avatar";
+import { Icon, type IconName } from "./components/Icon";
 import { DevPersonaBar } from "./components/DevPersonaBar";
+import { ProgramSwitcher, type Prog } from "./components/shell/ProgramSwitcher";
+import { AccountMenu } from "./components/shell/AccountMenu";
 import { useConfirm } from "./components/Confirm";
 import { PageSkeleton } from "./components/States";
 import { BrandMark } from "./components/BrandMark";
@@ -27,67 +28,23 @@ const Manage = lazy(() => import("./pages/Manage"));
 const Programs = lazy(() => import("./pages/Programs"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-type Prog = NonNullable<Me["programs"]>[number];
 const LAST = "fde:program";
+const RAIL = "fde:sidebar"; // "rail" or "full"; unset means "decide by screen width"
 const PAGES: [string, string][] = [["", "Plan"], ["daily", "Daily status"], ["status", "Program status"], ["reports", "Reports"], ["manage", "Manage"]];
 
-function useIsPhone() {
-  const q = "(max-width: 899px)";
-  const [phone, setPhone] = useState(() => window.matchMedia(q).matches);
+function useMedia(q: string) {
+  const [on, setOn] = useState(() => window.matchMedia(q).matches);
   useEffect(() => {
     const m = window.matchMedia(q);
-    const on = () => setPhone(m.matches);
-    m.addEventListener("change", on);
-    return () => m.removeEventListener("change", on);
-  }, []);
-  return phone;
+    const ch = () => setOn(m.matches);
+    m.addEventListener("change", ch);
+    return () => m.removeEventListener("change", ch);
+  }, [q]);
+  return on;
 }
 
 function Centered({ children }: { children: ReactNode }) {
   return <main className="center-page" id="main"><div className="center-card card">{children}</div></main>;
-}
-
-function Brand() {
-  return <Link to="/" className="brand"><BrandMark />FDE Tracker</Link>;
-}
-
-/** The current program, with a list to switch to another one. */
-function ProgramSwitcher({ programs, current }: { programs: Prog[]; current: Prog }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  const btn = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); btn.current?.focus(); } };
-    document.addEventListener("mousedown", away); document.addEventListener("keydown", esc);
-    box.current?.querySelector<HTMLAnchorElement>(".switch-list a")?.focus();
-    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
-  }, [open]);
-  const face = (
-    <>
-      <span className="ps-tile" aria-hidden="true">{current.name.charAt(0)}</span>
-      <span className="ps-text"><span className="ps-name">{current.name}</span><span className="ps-role">{ROLE_LABEL[current.role]}</span></span>
-    </>
-  );
-  if (programs.length < 2) return <div className="switcher single">{face}</div>;
-  return (
-    <div className="switcher-wrap" ref={box}>
-      <button ref={btn} type="button" className="switcher" aria-expanded={open} aria-controls="program-list" onClick={() => setOpen((o) => !o)}>
-        <span className="sr">Switch program. Current: </span>{face}<Icon name="updown" size={16} />
-      </button>
-      {open && (
-        <div id="program-list" className="switch-list">
-          <p className="overline">Your programs</p>
-          {programs.map((p) => (
-            <Link key={p.id} to={`/p/${p.id}`} aria-current={p.id === current.id ? "true" : undefined} onClick={() => setOpen(false)}>
-              <span className="ps-tile sm" aria-hidden="true">{p.name.charAt(0)}</span><span className="grow">{p.name}</span><span className="ps-role">{ROLE_LABEL[p.role]}</span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 function crumbs(path: string, programs: Prog[]): string[] {
@@ -103,46 +60,83 @@ function crumbs(path: string, programs: Prog[]): string[] {
   return ["Page not found"];
 }
 
+/** A side-panel link: icon, label (a tooltip when the panel is a rail) and an optional count. */
+function Item({ to, icon, label, end, count, replace }: { to: string; icon: IconName; label: string; end?: boolean; count?: number; replace?: boolean }) {
+  return (
+    <NavLink to={to} end={end} replace={replace} className="nav-item">
+      <Icon name={icon} strokeWidth={1.9} />
+      <span className="nav-label">{label}</span>
+      {!!count && <span className="nav-count">{count > 9 ? "9+" : count}<span className="sr"> new posts</span></span>}
+    </NavLink>
+  );
+}
+
 function Shell({ me }: { me: Me }) {
   const { user, signOut } = useStore();
   const persona = useDevPersona();
   const loc = useLocation();
   const navigate = useNavigate();
   const confirm = useConfirm();
-  const phone = useIsPhone();
+  const phone = useMedia("(max-width: 767px)");
+  const wide = useMedia("(min-width: 1200px)");
   const [open, setOpen] = useState(false);
+  const [railPref, setRailPref] = useState<string | null>(() => { try { return localStorage.getItem(RAIL); } catch { return null; } });
+  const rail = !phone && (railPref ? railPref === "rail" : !wide);
   const mainRef = useRef<HTMLElement>(null);
-  const burger = useRef<HTMLButtonElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
   const side = useRef<HTMLElement>(null);
+  const drawerLayer = useRef<number | null>(null);
   const lastPath = useRef(loc.pathname);
   const progs = me.programs ?? [];
   const isAdmin = me.role === "admin";
+  const unseen = useUnseenPosts(me.id, loc.pathname === "/");
 
   const urlPid = matchPath("/p/:pid/*", loc.pathname)?.params.pid;
   const stored = (() => { try { return localStorage.getItem(LAST); } catch { return null; } })();
   const current = progs.find((p) => p.id === urlPid) ?? progs.find((p) => p.id === stored) ?? progs[0];
   useEffect(() => { if (current) { try { localStorage.setItem(LAST, current.id); } catch { /* ignore */ } } }, [current]);
 
+  const toggleRail = () => {
+    const next = rail ? "full" : "rail";
+    setRailPref(next);
+    try { localStorage.setItem(RAIL, next); } catch { /* ignore */ }
+  };
+
+  // The phone drawer. Opening it adds a history entry, so Android Back closes it.
+  const openDrawer = (e: { currentTarget: HTMLElement }) => {
+    opener.current = e.currentTarget;
+    setOpen(true);
+    drawerLayer.current = openLayer(() => { drawerLayer.current = null; setOpen(false); opener.current?.focus(); });
+  };
+  const closeDrawer = (focus = true) => {
+    setOpen(false);
+    const l = drawerLayer.current; drawerLayer.current = null;
+    void closeLayer(l);
+    if (focus) opener.current?.focus();
+  };
+
   // A new page: close the drawer, go to the top and move focus to the page so screen readers announce it.
   useEffect(() => {
-    setOpen(false);
+    if (drawerLayer.current) closeDrawer(false);
     if (lastPath.current === loc.pathname) return;
     lastPath.current = loc.pathname;
     if (!loc.hash) window.scrollTo(0, 0);
     mainRef.current?.focus({ preventScroll: true });
   }, [loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => { if (!phone && drawerLayer.current) closeDrawer(false); }, [phone]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (side.current) side.current.inert = phone && !open; }, [phone, open]);
-  // The drawer on phones: focus goes in, Esc closes, the page behind is inert.
+  // The drawer on phones: focus goes in, Esc closes, the page behind is inert and does not scroll.
   useEffect(() => {
     const col = mainRef.current?.parentElement;
     if (col) col.inert = phone && open;
+    document.documentElement.classList.toggle("scroll-lock", phone && open);
     if (!phone || !open) return;
     side.current?.querySelector<HTMLElement>("nav a")?.focus();
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); burger.current?.focus(); } };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") closeDrawer(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [open, phone]);
+  }, [open, phone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Unsaved changes: ask before following a link inside the app.
   useEffect(() => {
@@ -159,68 +153,86 @@ function Shell({ me }: { me: Me }) {
     return () => document.removeEventListener("click", onClick, true);
   }, [confirm, navigate]);
 
-  const closeDrawer = () => { setOpen(false); burger.current?.focus(); };
   const trail = crumbs(loc.pathname, progs);
   const name = me.display_name || user?.email.split("@")[0] || "You";
   const base = current ? `/p/${current.id}` : "";
+  const inDrawer = phone && open; // links in the open drawer replace its history entry instead of stacking on it
+  const moreActive = open || /^\/p\/[^/]+\/(status|manage)$/.test(loc.pathname) || loc.pathname === "/programs" && !!current;
 
   return (
-    <div className={"app" + (open ? " drawer-open" : "")}>
+    <div className={"app" + (open ? " drawer-open" : "") + (rail ? " rail" : "")}>
       <a href="#main" className="skip" onClick={(e) => { e.preventDefault(); mainRef.current?.focus(); }}>Skip to content</a>
       <aside ref={side} className="sidebar" aria-label="Sidebar">
         <div className="side-top">
-          <Brand />
-          {phone && <button type="button" className="iconbtn" aria-label="Close the menu" onClick={closeDrawer}><Icon name="x" /></button>}
+          <Link to="/" className="brand" replace={inDrawer} data-tip="FDE Tracker"><BrandMark /><span className="brand-name">FDE Tracker</span></Link>
+          {phone && <button type="button" className="iconbtn" aria-label="Close the menu" onClick={() => closeDrawer()}><Icon name="x" /></button>}
         </div>
-        {current && <ProgramSwitcher programs={progs} current={current} />}
+        {current && <ProgramSwitcher programs={progs} current={current} isAdmin={isAdmin} />}
         <nav aria-label="Main" className="nav">
-          <NavLink to="/" end><Icon name="rss" />Feed</NavLink>
-          {isAdmin && <NavLink to="/programs"><Icon name="shield" />Programs</NavLink>}
+          <div className="nav-group">
+            <Item to="/" end icon="home" label="Feed" count={unseen} replace={inDrawer} />
+            {isAdmin && <Item to="/programs" icon="grid" label="Programs" replace={inDrawer} />}
+          </div>
           {current && (
-            <div className="nav-group" role="group" aria-label={current.name}>
-              <p className="overline" aria-hidden="true">{current.name}</p>
-              <NavLink to={base} end><Icon name="book" />Plan</NavLink>
-              <NavLink to={`${base}/daily`}><Icon name="calendar" />Daily status</NavLink>
-              <NavLink to={`${base}/status`}><Icon name="tasks" />Program status</NavLink>
-              <NavLink to={`${base}/reports`}><Icon name="chart" />Reports</NavLink>
-              {current.role !== "member" && <NavLink to={`${base}/manage`}><Icon name="user" />Manage and invite</NavLink>}
+            <div className="nav-group" role="group" aria-labelledby="nav-program">
+              <p className="nav-section" id="nav-program"><span className="sr">Program: </span>{current.name}</p>
+              <Item to={base} end icon="book" label="Plan" replace={inDrawer} />
+              <Item to={`${base}/daily`} icon="daily" label="Daily status" replace={inDrawer} />
+              <Item to={`${base}/status`} icon="status" label="Program status" replace={inDrawer} />
+              <Item to={`${base}/reports`} icon="chart" label="Reports" replace={inDrawer} />
+              {current.role !== "member" && <Item to={`${base}/manage`} icon="manage" label="Manage and invite" replace={inDrawer} />}
             </div>
           )}
           {progs.length === 0 && <p className="nav-note">You are not in a program yet. The admin or a coordinator adds you.</p>}
         </nav>
         <div className="side-foot">
-          <DevPersonaBar />
-          <ThemeSwitch />
-          <div className="account">
-            <Avatar name={name} size="sm" />
-            <div className="account-text"><span className="account-name">{name}{isAdmin && <span className="badge">Admin</span>}</span><span className="account-mail" title={user?.email}>{user?.email}</span></div>
-            <button type="button" className="iconbtn" aria-label="Sign out" title="Sign out" onClick={signOut}><Icon name="logout" size={16} /></button>
-          </div>
+          <div className="side-dev"><DevPersonaBar /></div>
+          <AccountMenu name={name} email={user?.email ?? me.email} isAdmin={isAdmin} onSignOut={() => void signOut()} />
         </div>
       </aside>
-      {phone && open && <div className="scrim" onClick={closeDrawer} aria-hidden="true" />}
+      {phone && open && <div className="scrim" onClick={() => closeDrawer()} aria-hidden="true" />}
       <div className="main-col">
         <header className="topbar">
-          {phone && <button ref={burger} type="button" className="iconbtn" aria-label="Open the menu" aria-expanded={open} onClick={() => setOpen(true)}><Icon name="menu" /></button>}
+          {phone
+            ? <button type="button" className="iconbtn" aria-label="Open the menu" aria-expanded={open} onClick={openDrawer}><Icon name="menu" /></button>
+            : <button type="button" className="iconbtn" aria-label={rail ? "Expand the side panel" : "Collapse the side panel"} title={rail ? "Expand the side panel" : "Collapse the side panel"} onClick={toggleRail}><Icon name={rail ? "panelOpen" : "panelClose"} /></button>}
+          <span className="topbar-sep" aria-hidden="true" />
           <nav aria-label="Breadcrumb" className="crumbs">
             <ol>{trail.map((c, i) => <li key={i} aria-current={i === trail.length - 1 ? "page" : undefined}>{c}</li>)}</ol>
           </nav>
         </header>
         <main ref={mainRef} id="main" className="main" tabIndex={-1}>
           <Suspense fallback={<div className="content"><PageSkeleton /></div>}>
-            <Routes key={persona}>
-              <Route path="/" element={<Feed />} />
-              <Route path="/post/:id" element={<PostPage />} />
-              <Route path="/programs" element={<Programs />} />
-              <Route path="/p/:pid" element={<Plan />} />
-              <Route path="/p/:pid/daily" element={<DailyStatus />} />
-              <Route path="/p/:pid/status" element={<ProgramStatus />} />
-              <Route path="/p/:pid/reports" element={<Reports />} />
-              <Route path="/p/:pid/manage" element={<Manage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <div className="page" key={loc.pathname}>
+              <Routes key={persona}>
+                <Route path="/" element={<Feed />} />
+                <Route path="/post/:id" element={<PostPage />} />
+                <Route path="/programs" element={<Programs />} />
+                <Route path="/p/:pid" element={<Plan />} />
+                <Route path="/p/:pid/daily" element={<DailyStatus />} />
+                <Route path="/p/:pid/status" element={<ProgramStatus />} />
+                <Route path="/p/:pid/reports" element={<Reports />} />
+                <Route path="/p/:pid/manage" element={<Manage />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
           </Suspense>
         </main>
+        {phone && (
+          <nav className="tabbar" aria-label="Shortcuts">
+            <NavLink to="/" end className="tab"><span className="tab-icon"><Icon name="home" />{!!unseen && <span className="tab-dot" />}</span><span>Feed{!!unseen && <span className="sr">, {unseen} new posts</span>}</span></NavLink>
+            {current ? (
+              <>
+                <NavLink to={base} end className="tab"><span className="tab-icon"><Icon name="book" /></span><span>Plan</span></NavLink>
+                <NavLink to={`${base}/daily`} className="tab"><span className="tab-icon"><Icon name="daily" /></span><span>Status</span></NavLink>
+                <NavLink to={`${base}/reports`} className="tab"><span className="tab-icon"><Icon name="chart" /></span><span>Reports</span></NavLink>
+              </>
+            ) : isAdmin && <NavLink to="/programs" className="tab"><span className="tab-icon"><Icon name="grid" /></span><span>Programs</span></NavLink>}
+            <button type="button" className={"tab" + (moreActive ? " active" : "")} aria-expanded={open} onClick={openDrawer}>
+              <span className="tab-icon"><Icon name="menu" /></span><span>More<span className="sr"> pages and your account</span></span>
+            </button>
+          </nav>
+        )}
       </div>
     </div>
   );

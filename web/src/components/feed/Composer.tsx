@@ -8,8 +8,14 @@ import { Icon } from "../Icon";
 import { useToast } from "../Toast";
 import { BODY_MAX, cleanPost } from "./PostCard";
 
+type Props = {
+  name: string; meId?: string;
+  /** The post shows at once (marked "Posting"); then it is swapped for the saved one, or taken out again if saving fails. */
+  onPending: (temp: Post) => void; onPosted: (p: Post, tempId: string) => void; onFailed: (tempId: string) => void;
+};
+
 /** Write a post: text, an optional link (or the first https link in the text), with a character counter. */
-export const Composer = forwardRef<HTMLTextAreaElement, { name: string; onPosted: (p: Post) => void }>(function Composer({ name, onPosted }, ref) {
+export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer({ name, meId, onPending, onPosted, onFailed }, ref) {
   const [body, setBody] = useState("");
   const [url, setUrl] = useState("");
   const [withLink, setWithLink] = useState(false);
@@ -23,8 +29,13 @@ export const Composer = forwardRef<HTMLTextAreaElement, { name: string; onPosted
     const v = cleanPost(body, url);
     if (typeof v === "string") { setErr(v); return; }
     setBusy(true); setErr("");
-    try { const p = await feed.post({ body: v.body ?? undefined, url: v.url ?? undefined }); setBody(""); setUrl(""); setWithLink(false); toast.success("Posted to the feed."); onPosted(p); }
-    catch (e2) { setErr(errText(e2)); } finally { setBusy(false); }
+    const temp: Post = { id: `tmp-p${Date.now()}`, author: { id: meId ?? "", name }, body: v.body, url: v.url, created_at: new Date().toISOString(), edited_at: null, like_count: 0, liked_by_me: false, comment_count: 0, comments: [] };
+    const kept = { body, url, withLink };
+    setBody(""); setUrl(""); setWithLink(false);
+    onPending(temp);
+    try { const p = await feed.post({ body: v.body ?? undefined, url: v.url ?? undefined }); toast.success("Posted to the feed."); onPosted(p, temp.id); }
+    catch (e2) { onFailed(temp.id); setBody((b) => b || kept.body); setUrl((u) => u || kept.url); setWithLink(kept.withLink); setErr(errText(e2, "Your post was not shared.")); }
+    finally { setBusy(false); }
   };
   const left = BODY_MAX - body.length;
   return (

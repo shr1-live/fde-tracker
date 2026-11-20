@@ -17,6 +17,22 @@ The contract between the two parts is [api/docs/PROGRAMS-V3.md](api/docs/PROGRAM
 
 Both folders keep their full git history from the earlier repositories (`fde-tracker-api` and `FDE-Learniing-Tracker`, branch `feature/programs-v3`).
 
+## Documentation
+
+| Doc | What it covers |
+|---|---|
+| [docs/PRODUCT.md](docs/PRODUCT.md) | Problem, users and roles, journeys, scope, success measures |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, request flow, data model, access model, trade-offs, limits ([diagram](docs/architecture.excalidraw)) |
+| [docs/STANDARDS.md](docs/STANDARDS.md) | Coding, accessibility and git rules in use |
+| [docs/AI-DEVELOPMENT.md](docs/AI-DEVELOPMENT.md) | How AI was used: context files, agents, skills, guardrails, failures and lessons |
+| [docs/QA.md](docs/QA.md) | Tests, browser checks, reviews, what is not automated |
+| [docs/SECURITY.md](docs/SECURITY.md) | Threats, controls, known gaps, reporting |
+| [docs/DELIVERY.md](docs/DELIVERY.md) | Environments, run locally, deploy, release checklist |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Main decisions with dates |
+| [docs/DISCLOSURE.md](docs/DISCLOSURE.md) | Earlier work this builds on |
+| [AGENTS.md](AGENTS.md) | Rules for AI agents working in this repo |
+| [DESIGN.md](DESIGN.md) | Design system |
+
 ## Deploy
 
 - **Web (Vercel):** import this repository. Nothing else needs setting: the top-level `vercel.json` builds `web/` and sends the security headers, and `web/.env.production` holds the public settings. Live at https://fde-tracker-green.vercel.app.
