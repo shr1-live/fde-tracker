@@ -128,6 +128,7 @@ export default function Plan() {
   const { program, error, reload } = useProgram(pid);
   const [mine, setMine] = useState<Map<string, DayStatus>>(new Map());
   const [editing, setEditing] = useState(false);
+  const [openWeeks, setOpenWeeks] = useState<Map<number, boolean>>(new Map());
   const [edit, setEdit] = useState<Day | "new" | null>(null);
   const [err, setErr] = useState("");
   const confirm = useConfirm();
@@ -142,6 +143,8 @@ export default function Plan() {
   if (!program) return <div className="content"><PageSkeleton /></div>;
   const manage = canManage(program.my_role);
   const weeks = byWeek(program.days);
+  const linked = program.days.find((x) => location.hash === `#day-${x.id}`)?.week; // a link to one day opens its week
+  const focusWeek = linked ?? (member ? weeks.find(([, ds]) => ds.some((x) => !mine.get(x.id)?.completed))?.[0] : undefined) ?? weeks[0]?.[0];
   const remove = async (d: Day) => {
     if (!(await confirm({ title: `Delete Week ${d.week}, Day ${d.day}?`, body: `"${d.topic}" and everyone's status for this day are deleted. This cannot be undone.`, confirm: "Delete day", danger: true }))) return;
     try { await programs.deleteDay(program.id, d.id); toast.success("Day deleted."); await reload(); } catch (e) { toast.error(errText(e)); }
@@ -173,24 +176,27 @@ export default function Plan() {
         <EmptyState icon="book" title="No days in this plan yet"
           action={manage && !editing ? <button type="button" className="btn" onClick={() => { setEditing(true); setEdit("new"); }}><Icon name="plus" size={16} />Add the first day</button> : undefined}>
           {manage ? "Add the first day: a topic, what to cover and a practical task." : "Your coordinator will add the days. Meanwhile, the feed has what others are sharing."}
-          {!manage && <> <Link to="/">Open the feed</Link>.</>}
+          {!manage && <> <Link to={`/p/${program.id}/feed`}>Open the feed</Link>.</>}
         </EmptyState>
       )}
       {weeks.map(([w, days]) => {
         const d = days.filter((x) => mine.get(x.id)?.completed).length;
+        // Many weeks: only the week you are on starts open (the first unfinished one); editing opens them all.
+        const isOpen = editing || (openWeeks.get(w) ?? w === focusWeek);
         return (
-          <section key={w} className="week" aria-labelledby={`wk-${w}`}>
-            <div className="week-head">
-              <h2 id={`wk-${w}`}>Week {w}</h2>
+          <details key={w} className="week" open={isOpen} onToggle={(e) => { const o = (e.currentTarget as HTMLDetailsElement).open; if (o !== isOpen) setOpenWeeks((m) => new Map(m).set(w, o)); }}>
+            <summary className="week-head">
+              <span className="week-caret" aria-hidden="true"><Icon name="down" size={18} /></span>
+              <h2 id={`wk-${w}`} className="grow">Week {w}<span className="meta week-count"> · {days.length} {days.length === 1 ? "day" : "days"}</span></h2>
               {member && <Chip tone={d === days.length ? "ok" : d ? "info" : "none"}>{d === days.length ? "Week completed" : `${d} of ${days.length} days done`}</Chip>}
-            </div>
+            </summary>
             <div className="stack">
               {days.map((x) => (edit !== "new" && edit?.id === x.id
                 ? <DayEditor key={x.id} program={program} day={x} onDone={done} />
                 : <DayCard key={x.id} program={program} day={x} mine={mine.get(x.id)} member={member} editing={editing} onEdit={() => setEdit(x)} onDelete={() => remove(x)}
                     onSaved={(s) => setMine((m) => new Map(m).set(s.day_id, s))} />))}
             </div>
-          </section>
+          </details>
         );
       })}
     </div>

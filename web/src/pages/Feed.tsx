@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useParams } from "react-router-dom";
 import { API_URL } from "../lib/api";
 import { useMe } from "../lib/useRole";
 import { feed, type FeedKind, type FeedSort, type Post } from "../lib/v3";
@@ -21,6 +21,7 @@ const smooth = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matc
 
 export default function Feed() {
   const { me } = useMe();
+  const { pid = "" } = useParams();
   const [sp, setSp] = useSearchParams();
   const sort: FeedSort = SORTS.some(([k]) => k === sp.get("sort")) ? (sp.get("sort") as FeedSort) : "new";
   const mine = sp.get("mine") === "1";
@@ -66,12 +67,12 @@ export default function Feed() {
     const my = ++seq.current;
     setLoading(true); setCursor(null); setIncoming(null); setMoreErr(""); // an old cursor only works with the sort it came from
     try {
-      const r = await feed.list({ sort, kind, mine, q });
+      const r = await feed.list({ program_id: pid, sort, kind, mine, q });
       if (my !== seq.current) return;
       setPosts(r.items); setCursor(r.next_cursor); setErr("");
     } catch (e) { if (my === seq.current) { setErr(errText(e, "Could not load the feed.")); setPosts((x) => x ?? []); } }
     finally { if (my === seq.current) setLoading(false); }
-  }, [sort, kind, mine, q]);
+  }, [pid, sort, kind, mine, q]);
 
   // Every minute (while the tab is visible) look for changes without moving anything under the reader:
   // counts and comments update in place, and newer posts wait behind a "New posts" pill.
@@ -79,7 +80,7 @@ export default function Feed() {
     const my = seq.current;
     if (document.visibilityState !== "visible" || !postsRef.current) return;
     try {
-      const r = await feed.list({ sort, kind, mine, q });
+      const r = await feed.list({ program_id: pid, sort, kind, mine, q });
       const cur = postsRef.current;
       if (my !== seq.current || !cur) return;
       const byId = new Map(r.items.map((p) => [p.id, p]));
@@ -89,7 +90,7 @@ export default function Feed() {
       const fresh = r.items.filter((p) => !have.has(p.id) && p.created_at > since);
       setIncoming(fresh.length ? { items: r.items, cursor: r.next_cursor, fresh } : null);
     } catch { /* a failed background check changes nothing */ }
-  }, [sort, kind, mine, q]);
+  }, [pid, sort, kind, mine, q]);
 
   useEffect(() => {
     if (!API_URL) return;
@@ -110,7 +111,7 @@ export default function Feed() {
     const first = postsRef.current?.length ?? 0;
     const my = seq.current; // a cursor belongs to the sort and filters it came from
     try {
-      const r = await feed.list({ sort, kind, mine, q, cursor });
+      const r = await feed.list({ program_id: pid, sort, kind, mine, q, cursor });
       if (my !== seq.current) return;
       setPosts((all) => [...(all ?? []), ...r.items.filter((x) => !(all ?? []).some((y) => y.id === x.id))]);
       setCursor(r.next_cursor);
@@ -181,9 +182,9 @@ export default function Feed() {
     <div className="content narrow">
       <header className="page-head feed-head">
         <h1>Feed</h1>
-        <p className="page-sub">Everyone in every program sees this. Share a useful video or article, or something you built.</p>
+        <p className="page-sub">Everyone in this program sees this. Share a useful video or article, or something you built.</p>
       </header>
-      <Composer ref={composer} name={name} meId={me?.id} onPending={pendingPost} onPosted={posted} onFailed={failed} />
+      <Composer ref={composer} programId={pid} name={name} meId={me?.id} onPending={pendingPost} onPosted={posted} onFailed={failed} />
       <section className="feed-tools" aria-label="Sort and filter posts">
         <div className="feed-tools-row">
           <div className="search">
