@@ -575,4 +575,45 @@ public sealed class ProgramsV3Tests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(404, await Status("POST", $"/api/feed/{id}/comments", M1, new { body = "hi" }));
         Assert.Equal(200, await Status("GET", $"/api/feed/{id}", Admin)); // the admin sees every program
     }
+
+    [Fact]
+    public async Task V14_the_timesheet_keeps_tasks_hours_and_notes_per_week_and_hours_settle_the_reminder()
+    {
+        var monday = DateTime.UtcNow.Date;
+        while (monday.DayOfWeek != DayOfWeek.Monday) monday = monday.AddDays(-1);
+        var week = monday.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        string Day(int n) => monday.AddDays(n).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var path = $"{P(Fde)}/timesheet/{week}";
+
+        Assert.Empty((await api.Call("GET", path, M1)).Body["tasks"]!.AsArray());
+        await api.Count($"with x as (insert into notifications (user_id, kind, program_id, on_date, title) values ('{M1.Id}', 'daily_missed', '{Fde}', '{Day(0)}', 'Fill in') returning 1) select count(*) from x");
+
+        var body = new { submit = false, tasks = new object[] {
+            new { title = "Day 5 theory", cells = new object[] { new { date = Day(0), minutes = 180, note = "Embeddings" }, new { date = Day(0), minutes = 30, note = (string?)null } } },
+        } };
+        Assert.Equal(400, await Status("PUT", path, M1, body)); // two entries for the same day
+        var good = new { submit = true, tasks = new object[] {
+            new { title = "Day 5 theory", cells = new object[] { new { date = Day(0), minutes = 180, note = "Embeddings" } } },
+            new { title = "Practical: RAG bot", cells = new object[] { new { date = Day(0), minutes = 150, note = (string?)null } } },
+        } };
+        var saved = (await api.Call("PUT", path, M1, good)).Body;
+        Assert.Equal(2, saved["tasks"]!.AsArray().Count);
+        Assert.Equal("Day 5 theory", (string)saved["tasks"]![0]!["title"]!);
+        Assert.Equal(180, (int)saved["tasks"]![0]!["cells"]![0]!["minutes"]!);
+        Assert.NotNull(saved["submitted_at"]);
+        Assert.Equal(0, await api.Count($"select count(*) from notifications where user_id = '{M1.Id}' and on_date = '{Day(0)}' and read_at is null"));
+
+        // Rules: a day is at most 24 h, days stay inside the week, a task needs a name, the week starts on Monday.
+        Assert.Equal(400, await Status("PUT", path, M1, new { tasks = new object[] { new { title = "A", cells = new object[] { new { date = Day(0), minutes = 1000 } } }, new { title = "B", cells = new object[] { new { date = Day(0), minutes = 500 } } } } }));
+        Assert.Equal(400, await Status("PUT", path, M1, new { tasks = new object[] { new { title = "A", cells = new object[] { new { date = monday.AddDays(7).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), minutes = 60 } } } } }));
+        Assert.Equal(400, await Status("PUT", path, M1, new { tasks = new object[] { new { title = " ", cells = Array.Empty<object>() } } }));
+        Assert.Equal(400, await Status("GET", $"{P(Fde)}/timesheet/{Day(1)}", M1));
+
+        // Only your own: a member cannot read someone else's, a coordinator can; nobody outside the program can.
+        Assert.Equal(403, await Status("GET", $"{path}?user_id={M1.Id}", M2));
+        Assert.Equal("Practical: RAG bot", (string)(await api.Call("GET", $"{path}?user_id={M1.Id}", Co)).Body["tasks"]![1]!["title"]!);
+        Assert.Equal(404, await Status("GET", path, Dx));
+        // A later save without submit is a draft again.
+        Assert.Null((await api.Call("PUT", path, M1, new { submit = false, tasks = new object[] { new { title = "Day 5 theory", cells = Array.Empty<object>() } } })).Body["submitted_at"]);
+    }
 }

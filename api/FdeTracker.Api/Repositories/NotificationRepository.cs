@@ -52,7 +52,7 @@ public sealed class NotificationRepository
             """, new { userId, programId, onDate });
 
     /// <summary>
-    /// Creates one 'daily_missed' reminder per member (or coordinator) and program that has no daily status on <paramref name="onDate"/>.
+    /// Creates one 'daily_missed' reminder per member (or coordinator) and program with no daily status and no timesheet hours on <paramref name="onDate"/>.
     /// Only programs that had started by then, and only people who were already in the program that day. Safe to run again:
     /// the unique index skips reminders that exist. Pass <paramref name="onlyUserId"/> to do it for one person.
     /// </summary>
@@ -68,6 +68,8 @@ public sealed class NotificationRepository
                 and u.access_status = 'approved'
                 and (@onlyUserId::uuid is null or m.user_id = @onlyUserId::uuid)
                 and not exists (select 1 from lp_daily_status x where x.program_id = m.program_id and x.user_id = m.user_id and x.on_date = @onDate::date)
+                and not exists (select 1 from lp_time_cells c join lp_time_tasks t on t.id = c.task_id
+                                where t.program_id = m.program_id and t.user_id = m.user_id and c.on_date = @onDate::date and c.minutes > 0)
             ), added as (
               insert into notifications (user_id, kind, program_id, on_date, title, body, link)
               select user_id, 'daily_missed', program_id, @onDate::date,

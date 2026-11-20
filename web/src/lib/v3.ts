@@ -78,6 +78,15 @@ export const feed = {
   removeComment: (commentId: string) => apiJson<void>("DELETE", `/api/feed/comments/${commentId}`),
 };
 
+export type TimeCell = { date: string; minutes: number; note: string | null };
+export type TimeTask = { id?: string; title: string; cells: TimeCell[] };
+export type Timesheet = { user_id: string; week: string; submitted_at: string | null; updated_at: string | null; tasks: TimeTask[] };
+
+export const timesheet = {
+  get: (id: string, week: string, userId?: string) => apiJson<Timesheet>("GET", `${P(id)}/timesheet/${week}${q({ user_id: userId })}`),
+  save: (id: string, week: string, tasks: TimeTask[], submit: boolean) => apiJson<Timesheet>("PUT", `${P(id)}/timesheet/${week}`, { tasks, submit }),
+};
+
 export type Notification = { id: string; kind: "daily_missed"; program_id: string | null; on_date: string | null; title: string; body: string; link: string | null; created_at: string; read: boolean };
 
 export const notifications = {
