@@ -1,68 +1,43 @@
-# FDE Tracker V3
+# FDE Tracker: web app (Programs V3 frontend)
 
-An invite-only platform for running several learning programs (FDE, DevOps, ...), built from the lead engineer's review on 2026-11-19.
+An invite-only platform for running several learning programs (FDE, DevOps, ...). This repository is the **frontend**; the backend is [`fde-tracker-apiv2`](https://github.com/shr1-live/fde-tracker-apiv2).
 
-- **Feed** (home page): anyone posts text or a link (YouTube plays in place), likes and comments.
-- **Programs:** the admin creates them. Each program has **coordinators** (full access to that program) and **members**. One person can be a member of one program and a coordinator of another.
-- **Plan:** week, then day, then topic, topics to cover and an optional practical task, with a "completed" checkbox per day.
-- **Daily status** and **program status:** forms the coordinator defines. Each field has an (i) button with its description.
+- **Feed** (home page): post text or a link, YouTube plays in place; like, comment, sort, filter, search.
+- **Programs:** the admin creates them. Each has coordinators (full access to that program) and members.
+- **Plan:** week, then day, then topics and practical task, with a "completed" tick per day.
+- **Daily status** and **program status:** forms the coordinator defines; each field has an (i) button with its description.
 - **Reports:** daily and program-wise, downloadable as Excel in the same layout as the training sheets.
 
-The contract between the two parts is [api/docs/PROGRAMS-V3.md](api/docs/PROGRAMS-V3.md).
-
-| Folder | What it is |
+| | |
 |---|---|
-| [`api/`](api/) | ASP.NET Core (.NET 10) API, Postgres migrations, tests |
-| [`web/`](web/) | React + Vite web app |
+| Stack | React 18, Vite, TypeScript, Lucide icons; Inter |
+| Runs on | Vercel: https://fde-tracker-green.vercel.app |
+| Talks to | the API at `VITE_API_URL` (Render), signed in with Supabase |
+| Design | [DESIGN.md](DESIGN.md) |
+| Docs | [docs/](docs/) and [AGENTS.md](AGENTS.md) |
 
-Both folders keep their full git history from the earlier repositories (`fde-tracker-api` and `FDE-Learniing-Tracker`, branch `feature/programs-v3`).
+## Run locally
 
-## Documentation
-
-| Doc | What it covers |
-|---|---|
-| [docs/PRODUCT.md](docs/PRODUCT.md) | Problem, users and roles, journeys, scope, success measures |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, request flow, data model, access model, trade-offs, limits ([diagram](docs/architecture.excalidraw)) |
-| [docs/STANDARDS.md](docs/STANDARDS.md) | Coding, accessibility and git rules in use |
-| [docs/AI-DEVELOPMENT.md](docs/AI-DEVELOPMENT.md) | How AI was used: context files, agents, skills, guardrails, failures and lessons |
-| [docs/QA.md](docs/QA.md) | Tests, browser checks, reviews, what is not automated |
-| [docs/SECURITY.md](docs/SECURITY.md) | Threats, controls, known gaps, reporting |
-| [docs/DELIVERY.md](docs/DELIVERY.md) | Environments, run locally, deploy, release checklist |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Main decisions with dates |
-| [docs/DISCLOSURE.md](docs/DISCLOSURE.md) | Earlier work this builds on |
-| [AGENTS.md](AGENTS.md) | Rules for AI agents working in this repo |
-| [DESIGN.md](DESIGN.md) | Design system |
-
-## Deploy
-
-- **Web (Vercel):** import this repository. Nothing else needs setting: the top-level `vercel.json` builds `web/` and sends the security headers, and `web/.env.production` holds the public settings. Live at https://fde-tracker-green.vercel.app.
-- **API (Render):** New, then Blueprint, then this repository. The top-level `render.yaml` creates the `fde-tracker-v3-api` service from `api/`. In the Render dashboard, set `DATABASE_URL` (Supabase connection string), `SUPABASE_URL`, and optionally `LLM_API_KEY` / `LLM_MODEL`. The web app expects the API at https://fde-tracker-v3-api.onrender.com; if Render gives a different address, change `web/.env.production` and the `connect-src` entry in `vercel.json`.
-- **Supabase:** under Authentication, then URL Configuration, add `https://fde-tracker-green.vercel.app/**` to the Redirect URLs.
-
-Secrets (database password, model keys) never go into this repository.
-
-## Run locally (PowerShell)
-
-You need the .NET 10 SDK, Node 20 or later, and Docker.
+You need Node 20 or later, and the API running (see the backend repository's README).
 
 ```powershell
-docker run -d --name fde-pg -e POSTGRES_PASSWORD=localpass -p 5433:5432 postgres:16-alpine
-
-# API, from api/ (migrations run at start-up)
-$env:DATABASE_URL = "postgresql://postgres:localpass@localhost:5433/postgres?sslmode=disable"
-$env:SUPABASE_URL = "https://<your-project>.supabase.co"
-$env:CORS_ORIGINS = "http://localhost:5173"
-$env:ASPNETCORE_URLS = "http://localhost:5077"
-dotnet run --project FdeTracker.Api
-
-# Web, from web/
 npm ci
-$env:VITE_API_URL = "http://localhost:5077"
-npm run dev
+$env:VITE_API_URL = "http://localhost:5077"   # where your local API listens
+npm run dev                                   # http://localhost:5173
 ```
 
-Tests: `dotnet test` in `api/`. It needs Docker, because each test run starts its own Postgres.
+Without Supabase settings the app runs in local mode: type any office email on the sign-in page. In a development build a "Test account" box lets you act as admin, coordinator or member against a local API.
+
+Checks before a push: `npx tsc --noEmit` and `npm run build`.
+
+## Deploy (Vercel)
+
+Import this repository in Vercel. Nothing else needs setting: Vite is detected, [`vercel.json`](vercel.json) sends the security headers (Content-Security-Policy and more), and [`.env.production`](.env.production) holds only public build settings (API address, Supabase URL and publishable key). In Supabase, add the site address to Authentication, then URL Configuration, then Redirect URLs.
+
+If the API moves to a different address, change `VITE_API_URL` in `.env.production` and the `connect-src` entry in `vercel.json`.
+
+Secrets (database passwords, service keys, model keys) never go into this repository.
 
 ## Working rules
 
-Every change goes on a new branch from `develop`, then a pull request into `develop`. Merging `develop` into `main` deploys.
+New branch from `develop`, pull request into `develop`, and `develop` into `main` deploys. CI (type-check, build, audit, secret scan) runs on every pull request.

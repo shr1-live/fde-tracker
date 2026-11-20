@@ -1,31 +1,23 @@
-# Security
+# Security (frontend)
+
+This page covers the browser side. Server-side checks (tokens, roles, SQL, validation, rate limits, RLS) are in the [backend repository](https://github.com/shr1-live/fde-tracker-apiv2/blob/main/docs/SECURITY.md); the web app never replaces them.
 
 ## Threat model (summary)
 
 | Threat | Control |
 |---|---|
-| Someone outside the company signs in | Supabase Auth only; the API checks the email domain (`ALLOWED_DOMAIN`) and requires an invite |
-| A forged or expired token | The API verifies every JWT against the Supabase issuer and signing keys |
-| A member reads another member's status or reports | Per-program role checks in services; 403 for another person's data; tested |
-| A coordinator acts outside their program, or undoes an admin decision | Role checked per program; invites never lift a rejection; nobody changes their own role; the admin cannot be removed |
-| SQL injection | Parameterised SQL only (Dapper); search treats `%` and `_` as text |
-| Bad or oversized input | Server-side validation of every field; bodies capped at 64 KB; unknown JSON fields refused |
-| Script injection in the feed | React escapes text; links must be https; YouTube plays through `youtube-nocookie.com` only |
-| Abuse and floods | Rate limits: 240 requests per minute per address, 40 writes per minute per person; 30 posts and 200 comments per person per day |
-| Direct database access with the public key | RLS is on for every table and the `anon` and `authenticated` roles are revoked; all data goes through the API |
-| Other sites calling the API | CORS allow-list (`CORS_ORIGINS`) |
-| Clickjacking, content injection | Vercel headers: CSP with a short allow-list, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, HSTS, `nosniff`, Referrer-Policy, Permissions-Policy |
-| Leaked secrets | No secrets in the repo; Render values are `sync: false`; only public settings in `web/.env.production`; errors never echo internals |
-| Spreadsheet formula injection | Excel cells are written as plain values (text or number), never as formulas |
+| Someone outside the company signs in | Supabase Auth only; the API decides access (domain, invite). The web app only shows what the API allows |
+| The public Supabase key reads data | It only covers sign-in; the backend locks every table |
+| Script injection in the feed | React escapes text; links must be https; YouTube plays through `youtube-nocookie.com` only; the CSP allows no inline script |
+| Clickjacking, content injection | Vercel headers from the root `vercel.json`: CSP with a short allow-list, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, HSTS, `nosniff`, Referrer-Policy, Permissions-Policy |
+| Leaked secrets | No secrets in the repo; only public build settings in `.env.production` (API address, Supabase URL and publishable key) |
 
 ## Known gaps
 
-- No dedicated test yet proves that a value starting with `=` stays text in the Excel file.
-- No audit screen for program changes (who invited whom, who changed a form); the old audit log covers older admin actions only.
-- Rate limits are per server instance and reset on restart.
 - `style-src 'unsafe-inline'` is allowed in the CSP for inline styles.
-- CI (`.github/workflows/ci.yml`: API tests, web build, vulnerable-package check, gitleaks secret scan), Dependabot and a local hook that blocks secrets in agent edits (`.claude/hooks/block-secrets.mjs`) are being added on this branch. They have not run on GitHub yet.
-- Render free tier and Supabase free tier have no uptime promise.
+- CI (`.github/workflows/ci.yml`: type check, build, `npm audit`, gitleaks secret scan), Dependabot and a local hook that blocks secrets in agent edits (`.claude/hooks/block-secrets.mjs`) exist in the repository. They have not been checked on GitHub from this split yet.
+- Vercel, Render and Supabase free tiers have no uptime promise.
+- When the API address changes, the CSP `connect-src` in `vercel.json` must change too, or the browser blocks the calls.
 
 ## Reporting a problem
 

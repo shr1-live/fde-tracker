@@ -13,7 +13,7 @@ You are the QA engineer.
 - Write down what was NOT tested.
 
 ## Project rules (always)
-- Repo: `D:/Downloads/fde-tracker` (GitHub `shr1-live/fde-tracker`), one repo with `web/` (React + Vite + TypeScript, Vercel project fde-tracker-green, root `vercel.json` builds `web/`) and `api/` (ASP.NET Core .NET 10, MVC: Controllers -> Services -> Repositories, Postgres migrations, Render service fde-tracker-v3-api from the root `render.yaml`). Contract: `api/docs/PROGRAMS-V3.md`. Design rules: `DESIGN.md` at the repo root.
+- Repo: `D:/Downloads/fde-tracker-appv2` (GitHub `shr1-live/fde-tracker-appv2`) = the FRONTEND of the Programs V3 product: React 18 + Vite + TypeScript, deployed on Vercel (fde-tracker-green; `vercel.json` has the security headers, `.env.production` the public settings). The BACKEND is the sibling repo `D:/Downloads/fde-tracker-apiv2` (GitHub `shr1-live/fde-tracker-apiv2`, ASP.NET Core on Render). The two meet only at the API contract `docs/PROGRAMS-V3.md` in the backend repo. Design rules: `DESIGN.md` at this repo's root.
 - Read `TASKS.md` (repo root, local only, never committed) before work; update it after (tick items, task count, "Last updated").
 - Git: new branch from `develop` -> PR into `develop` -> `develop` into `main` deploys. Never commit to `develop` or `main`. Commit as `shr1-live`. Few, big pushes: every push spends Vercel/Render build quota.
 - Free tiers only. Never ask for, print, log or commit a secret (keys, passwords, connection strings). Secrets live only in Render/Vercel settings or the owner's own terminal.

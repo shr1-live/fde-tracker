@@ -4,12 +4,23 @@
 
 The editable diagram is [architecture.excalidraw](architecture.excalidraw): open https://excalidraw.com, then Menu > Open, and pick this file.
 
+## Repositories
+
+The product lives in two GitHub repositories. Each has its own build, CI and deploy.
+
+| Repository | Holds | Deploys to |
+|---|---|---|
+| [`fde-tracker-appv2`](https://github.com/shr1-live/fde-tracker-appv2) (frontend) | React app in `src/`, `DESIGN.md`, `vercel.json` | Vercel project `fde-tracker-green` |
+| [`fde-tracker-apiv2`](https://github.com/shr1-live/fde-tracker-apiv2) (backend) | ASP.NET Core API, `migrations/`, xUnit tests, `render.yaml`, the API contract `docs/PROGRAMS-V3.md` | Render service `fde-tracker-v3-api` |
+
+The two talk only through the API contract. Change the contract in the backend repository first, then the frontend follows. The product-level docs (product, architecture, AI development, decisions, disclosure) are the same in both repositories; the backend copy is the source. Standards, QA, security and delivery are written per repository.
+
 ## Components
 
 | Part | Technology | Where it runs |
 |---|---|---|
-| Web app (`web/`) | React 18, Vite, TypeScript | Vercel (free), built from the root `vercel.json` |
-| API (`api/`) | ASP.NET Core on .NET 10, MVC style, Dapper | Render free web service, Docker, from the root `render.yaml` (`fde-tracker-v3-api`) |
+| Web app (repository `fde-tracker-appv2`) | React 18, Vite, TypeScript | Vercel (free), built with Vite defaults and the root `vercel.json` of that repository |
+| API (repository `fde-tracker-apiv2`) | ASP.NET Core on .NET 10, MVC style, Dapper | Render free web service, Docker, from the root `render.yaml` of that repository (`fde-tracker-v3-api`) |
 | Database | Postgres | Supabase (free) |
 | Sign-in | Supabase Auth (magic link, JWT) | Supabase |
 | Excel | ClosedXML | Inside the API |
@@ -42,7 +53,7 @@ Created by migrations `010_programs_v3.sql` and `011_feed_scale.sql`. `app_users
 | `feed_likes` | One row per like |
 | `feed_comments` | Comments |
 
-Form values are JSON, but the server checks every key and type against `lp_form_fields` before saving (see the contract in [api/docs/PROGRAMS-V3.md](../api/docs/PROGRAMS-V3.md)).
+Form values are JSON, but the server checks every key and type against `lp_form_fields` before saving (see the contract in [PROGRAMS-V3.md in the backend repository](https://github.com/shr1-live/fde-tracker-apiv2/blob/main/docs/PROGRAMS-V3.md)).
 
 ## Authorization model
 
@@ -55,7 +66,7 @@ Form values are JSON, but the server checks every key and type against `lp_form_
 
 | Choice | Why | Cost |
 |---|---|---|
-| One repo with `web/` and `api/`, both histories imported | One place for judges and reviewers; full history kept | Two build systems in one repo |
+| Two repositories, one for the web app and one for the API (see Repositories) | Separate deploys, separate CI, smaller blast radius, clear ownership | The contract is kept in sync by hand; shared docs are copied; a cross-cutting change needs two pull requests |
 | Keyset (cursor) paging on the feed | Stable pages while new posts arrive; fast at any depth | Cursors are tied to one sort; changed cursors give 400 |
 | Like and comment counters kept by triggers | Sorting by "most liked" uses an index, not a count per request; counts stay right inside the same transaction | Logic lives in SQL as well as C# |
 | Excel built on the server with ClosedXML | Same file for everyone; matches the training sheet layout exactly; no big library in the browser | Larger API image; export is limited to 120 days |
