@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using ClosedXML.Excel;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FdeTracker.Tests;
 
@@ -501,5 +502,77 @@ public sealed class ProgramsV3Tests(ApiFixture api) : IClassFixture<ApiFixture>
         var page = (await api.Call("GET", "/api/feed?limit=50", M2)).Body["items"]!.AsArray();
         Assert.Equal(20, page.Single(x => (string)x!["id"]! == postId)!["comments"]!.AsArray().Count); // the last 20 only
         Assert.Equal(201, (int)page.Single(x => (string)x!["id"]! == postId)!["comment_count"]!);
+    }
+
+    [Fact]
+    public void V11_reminders_go_out_at_10_on_working_days_about_the_previous_working_day()
+    {
+        var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+        DateTime At(int y, int mo, int d, int h, int mi) => TimeZoneInfo.ConvertTimeToUtc(new DateTime(y, mo, d, h, mi, 0, DateTimeKind.Unspecified), ist);
+        Assert.Equal(new DateOnly(2026, 11, 19), FdeTracker.Api.Services.NotificationService.DayToRemind(At(2026, 11, 20, 10, 0), ist, 10)); // Fri 10:00 -> Thu
+        Assert.Null(FdeTracker.Api.Services.NotificationService.DayToRemind(At(2026, 11, 20, 9, 59), ist, 10));                            // not yet
+        Assert.Equal(new DateOnly(2026, 11, 20), FdeTracker.Api.Services.NotificationService.DayToRemind(At(2026, 11, 23, 10, 5), ist, 10)); // Mon -> Fri
+        Assert.Null(FdeTracker.Api.Services.NotificationService.DayToRemind(At(2026, 11, 21, 12, 0), ist, 10));                            // Saturday
+        // The API runs with invariant globalization, where the IANA name may not resolve: it still must be UTC+05:30.
+        Assert.Equal(TimeSpan.FromMinutes(330), FdeTracker.Api.Services.NotificationService.ResolveZone("Asia/Kolkata").GetUtcOffset(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public async Task V12_a_missed_program_gets_one_reminder_that_only_its_owner_sees_and_filling_in_settles_it()
+    {
+        var service = api.Services.GetRequiredService<FdeTracker.Api.Services.NotificationService>();
+        var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+        // A Wednesday well after today at 10:30 company time: everyone missed the Tuesday before.
+        var wed = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(14), DateTimeKind.Unspecified);
+        while (wed.DayOfWeek != DayOfWeek.Wednesday) wed = wed.AddDays(1);
+        var now = TimeZoneInfo.ConvertTimeToUtc(wed.AddHours(10).AddMinutes(30), ist);
+        var tue = wed.AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+        Assert.True(await service.RunReminders(nowUtc: now) > 0);
+        Assert.Equal(0, await service.RunReminders(nowUtc: now)); // repeating the run sends nothing twice
+        Assert.Equal(1, await api.Count($"select count(*) from notifications where user_id = '{M1.Id}' and program_id = '{Fde}' and on_date = '{tue}'"));
+        Assert.Equal(0, await api.Count($"select count(*) from notifications where user_id = '{Admin.Id}'")); // the admin has no daily status
+
+        var list = (await api.Call("GET", "/api/notifications", M1)).Body;
+        var mine = list["items"]!.AsArray().Single(n => (string?)n!["on_date"] == tue && (string?)n!["program_id"] == Fde)!;
+        Assert.Equal("daily_missed", (string)mine["kind"]!);
+        Assert.Equal($"/p/{Fde}/daily?date={tue}", (string)mine["link"]!);
+        Assert.False((bool)mine["read"]!);
+        var id = (string)mine["id"]!;
+
+        // Someone else cannot mark it read.
+        Assert.Equal(204, await Status("POST", $"/api/notifications/{id}/read", M2));
+        Assert.Equal(1, await api.Count($"select count(*) from notifications where id = '{id}' and read_at is null"));
+        Assert.Equal(204, await Status("POST", $"/api/notifications/{id}/read", M1));
+        Assert.Equal(0, await api.Count($"select count(*) from notifications where id = '{id}' and read_at is null"));
+
+        // Filling in the missed day settles its reminder.
+        await api.Count($"with x as (insert into notifications (user_id, kind, program_id, on_date, title) values ('{M2.Id}', 'daily_missed', '{Fde}', '{Today}', 'Fill in') returning 1) select count(*) from x");
+        Assert.Equal(200, await Status("PUT", $"{P(Fde)}/daily/{Today}", M2, DailyValues()));
+        Assert.Equal(0, await api.Count($"select count(*) from notifications where user_id = '{M2.Id}' and on_date = '{Today}' and read_at is null"));
+
+        Assert.Equal(204, await Status("POST", "/api/notifications/read-all", M2));
+        Assert.Equal(0, (int)(await api.Call("GET", "/api/notifications", M2)).Body["unread"]!);
+    }
+
+    [Fact]
+    public async Task V13_the_feed_is_per_program_and_other_programs_posts_stay_hidden()
+    {
+        var post = (await api.Call("POST", "/api/feed", Dx, new { body = "DevOps only: pipeline notes", program_id = DevOps })).Body;
+        var id = (string)post["id"]!;
+        Assert.Equal(404, await Status("POST", "/api/feed", Dx, new { body = "Into FDE", program_id = Fde })); // not in FDE
+
+        var devopsFeed = (await api.Call("GET", $"/api/feed?program_id={DevOps}", Dx)).Body["items"]!.AsArray();
+        Assert.Contains(devopsFeed, x => (string)x!["id"]! == id);
+        var fdeFeed = (await api.Call("GET", $"/api/feed?program_id={Fde}&limit=50", Admin)).Body["items"]!.AsArray();
+        Assert.DoesNotContain(fdeFeed, x => (string)x!["id"]! == id);
+
+        // An FDE member cannot read, list, like or comment on it.
+        Assert.Equal(404, await Status("GET", $"/api/feed?program_id={DevOps}", M1));
+        Assert.DoesNotContain((await api.Call("GET", "/api/feed?limit=50", M1)).Body["items"]!.AsArray(), x => (string)x!["id"]! == id);
+        Assert.Equal(404, await Status("GET", $"/api/feed/{id}", M1));
+        Assert.Equal(404, await Status("POST", $"/api/feed/{id}/like", M1));
+        Assert.Equal(404, await Status("POST", $"/api/feed/{id}/comments", M1, new { body = "hi" }));
+        Assert.Equal(200, await Status("GET", $"/api/feed/{id}", Admin)); // the admin sees every program
     }
 }

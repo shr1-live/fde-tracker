@@ -9,13 +9,13 @@ import { useToast } from "../Toast";
 import { BODY_MAX, cleanPost } from "./PostCard";
 
 type Props = {
-  name: string; meId?: string;
+  programId: string; name: string; meId?: string;
   /** The post shows at once (marked "Posting"); then it is swapped for the saved one, or taken out again if saving fails. */
   onPending: (temp: Post) => void; onPosted: (p: Post, tempId: string) => void; onFailed: (tempId: string) => void;
 };
 
 /** Write a post: text, an optional link (or the first https link in the text), with a character counter. */
-export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer({ name, meId, onPending, onPosted, onFailed }, ref) {
+export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer({ programId, name, meId, onPending, onPosted, onFailed }, ref) {
   const [body, setBody] = useState("");
   const [url, setUrl] = useState("");
   const [withLink, setWithLink] = useState(false);
@@ -33,7 +33,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, Props>(function Composer
     const kept = { body, url, withLink };
     setBody(""); setUrl(""); setWithLink(false);
     onPending(temp);
-    try { const p = await feed.post({ body: v.body ?? undefined, url: v.url ?? undefined }); toast.success("Posted to the feed."); onPosted(p, temp.id); }
+    try { const p = await feed.post({ body: v.body ?? undefined, url: v.url ?? undefined, program_id: programId }); toast.success("Posted to the feed."); onPosted(p, temp.id); }
     catch (e2) { onFailed(temp.id); setBody((b) => b || kept.body); setUrl((u) => u || kept.url); setWithLink(kept.withLink); setErr(errText(e2, "Your post was not shared.")); }
     finally { setBusy(false); }
   };

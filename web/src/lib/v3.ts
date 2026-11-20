@@ -28,7 +28,7 @@ export type Comment = { id: string; author: Author; body: string; created_at: st
 export type Post = { id: string; author: Author; body: string | null; url: string | null; created_at: string; edited_at: string | null; like_count: number; liked_by_me: boolean; comment_count: number; comments: Comment[] };
 export type FeedSort = "new" | "top" | "discussed";
 export type FeedKind = "all" | "video" | "link" | "text";
-export type FeedQuery = { sort?: FeedSort; kind?: FeedKind; mine?: boolean; q?: string; cursor?: string; limit?: number };
+export type FeedQuery = { program_id?: string; sort?: FeedSort; kind?: FeedKind; mine?: boolean; q?: string; cursor?: string; limit?: number };
 export type FeedPage = { items: Post[]; next_cursor: string | null };
 
 const P = (id: string) => `/api/programs/${encodeURIComponent(id)}`;
@@ -68,14 +68,22 @@ export const reports = {
 };
 
 export const feed = {
-  list: (o: FeedQuery = {}) => apiJson<FeedPage>("GET", `/api/feed${q({ sort: o.sort ?? "new", kind: o.kind ?? "all", mine: o.mine ? "true" : undefined, q: o.q?.trim() || undefined, cursor: o.cursor, limit: String(o.limit ?? 20) })}`),
+  list: (o: FeedQuery = {}) => apiJson<FeedPage>("GET", `/api/feed${q({ program_id: o.program_id, sort: o.sort ?? "new", kind: o.kind ?? "all", mine: o.mine ? "true" : undefined, q: o.q?.trim() || undefined, cursor: o.cursor, limit: String(o.limit ?? 20) })}`),
   get: (id: string) => apiJson<Post>("GET", `/api/feed/${encodeURIComponent(id)}`),
   edit: (id: string, b: { body: string | null; url: string | null }) => apiJson<Post>("PATCH", `/api/feed/${encodeURIComponent(id)}`, b),
-  post: (b: { body?: string; url?: string }) => apiJson<Post>("POST", "/api/feed", b),
+  post: (b: { body?: string; url?: string; program_id?: string }) => apiJson<Post>("POST", "/api/feed", b),
   remove: (id: string) => apiJson<void>("DELETE", `/api/feed/${id}`),
   like: (id: string) => apiJson<{ like_count: number; liked_by_me: boolean }>("POST", `/api/feed/${id}/like`),
   comment: (id: string, body: string) => apiJson<Comment>("POST", `/api/feed/${id}/comments`, { body }),
   removeComment: (commentId: string) => apiJson<void>("DELETE", `/api/feed/comments/${commentId}`),
+};
+
+export type Notification = { id: string; kind: "daily_missed"; program_id: string | null; on_date: string | null; title: string; body: string; link: string | null; created_at: string; read: boolean };
+
+export const notifications = {
+  list: () => apiJson<{ items: Notification[]; unread: number }>("GET", "/api/notifications"),
+  read: (id: string) => apiJson<void>("POST", `/api/notifications/${encodeURIComponent(id)}/read`),
+  readAll: () => apiJson<void>("POST", "/api/notifications/read-all"),
 };
 
 /** Saves a downloaded file in the browser. */

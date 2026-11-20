@@ -24,10 +24,10 @@ export default function PostPage() {
   useEffect(load, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="content narrow">
-      <Link to="/" className="back"><Icon name="left" size={16} />Back to the feed</Link>
+      <Link to="/" className="back"><Icon name="left" size={16} />Back to your programs</Link>
       <h1 className="sr">Post</h1>
       {state === "loading" && <Loading label="Loading the post"><PostSkeleton /></Loading>}
-      {state === "missing" && <EmptyState icon="inbox" title="This post is not here" action={<Link className="btn" to="/">Go to the feed</Link>}>It may have been deleted by its author.</EmptyState>}
+      {state === "missing" && <EmptyState icon="inbox" title="This post is not here" action={<Link className="btn" to="/">Go to your programs</Link>}>It may have been deleted by its author.</EmptyState>}
       {state === "error" && <ErrorState title="Could not load the post" message={err} onRetry={load} />}
       {state === "ok" && post && (
         <PostCard post={post} meId={me?.id} meName={me?.display_name || me?.email?.split("@")[0]} isAdmin={me?.role === "admin"} single onChange={(fn) => setPost((p) => (p ? fn(p) : p))} onRemoved={() => { navigate("/", { replace: true }); }} />

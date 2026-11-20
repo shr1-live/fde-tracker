@@ -19,16 +19,16 @@ export function markFeedSeen(iso: string | undefined) {
 }
 
 /** Posts by other people newer than the last one seen. 0 while on the feed, or before the feed was ever opened here. */
-export function useUnseenPosts(meId: string | undefined, onFeed: boolean): number {
+export function useUnseenPosts(meId: string | undefined, onFeed: boolean, programId: string | undefined): number {
   const [n, setN] = useState(0);
   useEffect(() => {
-    if (onFeed || !API_URL || !meId) { setN(0); return; }
+    if (onFeed || !API_URL || !meId || !programId) { setN(0); return; }
     let alive = true;
     const check = async () => {
       const seen = read();
       if (!seen || document.visibilityState !== "visible") { if (!seen) setN(0); return; }
       try {
-        const r = await feed.list({ sort: "new", limit: 10 });
+        const r = await feed.list({ program_id: programId, sort: "new", limit: 10 });
         if (alive) setN(r.items.filter((p) => p.author.id !== meId && Date.parse(p.created_at) > seen).length);
       } catch { /* the badge is a nicety; a failed check changes nothing */ }
     };
@@ -38,6 +38,6 @@ export function useUnseenPosts(meId: string | undefined, onFeed: boolean): numbe
     document.addEventListener("visibilitychange", onSeen);
     window.addEventListener(EVENT, onSeen);
     return () => { alive = false; window.clearInterval(t); document.removeEventListener("visibilitychange", onSeen); window.removeEventListener(EVENT, onSeen); };
-  }, [meId, onFeed]);
+  }, [meId, onFeed, programId]);
   return n;
 }
