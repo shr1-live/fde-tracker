@@ -25,6 +25,28 @@ const PATHS = {
   inbox: "M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13l3.5 7v6a2 2 0 01-2 2H4a2 2 0 01-2-2v-6L5.5 5z",
   heart: "M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z",
   comment: "M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.4A8 8 0 1121 12z",
+  menu: "M4 6h16M4 12h16M4 18h16",
+  x: "M6 6l12 12M18 6L6 18",
+  search: "M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.3-4.3",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
+  copy: "M9 9h10a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2V9zM5 15H4a2 2 0 01-2-2V5a2 2 0 012-2h8a2 2 0 012 2v1",
+  external: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5",
+  edit: "M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4",
+  trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
+  play: "M8 5v14l11-7z",
+  plus: "M12 5v14M5 12h14",
+  left: "M15 18l-6-6 6-6",
+  down: "M6 9l6 6 6-6",
+  updown: "M8 9l4-4 4 4M8 15l4 4 4-4",
+  logout: "M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l5-5-5-5M15 12H3",
+  sun: "M12 17a5 5 0 100-10 5 5 0 000 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4",
+  moon: "M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z",
+  monitor: "M3 4h18v12H3zM8 20h8M12 16v4",
+  globe: "M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18",
+  video: "M3 6h12v12H3zM15 10l6-3v10l-6-3",
+  text: "M4 6h16M4 12h16M4 18h10",
+  grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  sort: "M3 6h13M3 12h9M3 18h5M17 10v10M14 17l3 3 3-3",
 } as const;
 
 export type IconName = keyof typeof PATHS;
@@ -32,7 +54,7 @@ export type IconName = keyof typeof PATHS;
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-      <path d={PATHS[name]} />
+      <path d={PATHS[name]} fill={name === "play" ? "currentColor" : "none"} />
     </svg>
   );
 }

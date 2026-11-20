@@ -10,11 +10,11 @@ export function DevPersonaBar() {
   if (names.length === 0) return null;
   return (
     <div className="devbar" role="group" aria-label="Test accounts (development only)">
-      <small>Test account (dev only)</small>
+      <span className="overline">Test account (dev only)</span>
       <div className="themesw">
         {names.map((n) => <button key={n} type="button" aria-pressed={active === n} onClick={() => setActive(n)}>{n}</button>)}
       </div>
-      <small>{me ? `Acting as ${me.email} (${me.role})` : "Checking who this is..."}</small>
+      <span className="meta">{me ? `Acting as ${me.email} (${me.role})` : "Checking who this is..."}</span>
     </div>
   );
 }

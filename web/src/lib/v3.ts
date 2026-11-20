@@ -25,7 +25,11 @@ export type ProgramReport = { days: Day[]; fields: Field[]; people: (Person & { 
 
 export type Author = { id: string; name: string };
 export type Comment = { id: string; author: Author; body: string; created_at: string };
-export type Post = { id: string; author: Author; body: string | null; url: string | null; created_at: string; like_count: number; liked_by_me: boolean; comment_count: number; comments: Comment[] };
+export type Post = { id: string; author: Author; body: string | null; url: string | null; created_at: string; edited_at: string | null; like_count: number; liked_by_me: boolean; comment_count: number; comments: Comment[] };
+export type FeedSort = "new" | "top" | "discussed";
+export type FeedKind = "all" | "video" | "link" | "text";
+export type FeedQuery = { sort?: FeedSort; kind?: FeedKind; mine?: boolean; q?: string; cursor?: string; limit?: number };
+export type FeedPage = { items: Post[]; next_cursor: string | null };
 
 const P = (id: string) => `/api/programs/${encodeURIComponent(id)}`;
 const q = (o: Record<string, string | undefined>) => {
@@ -64,7 +68,9 @@ export const reports = {
 };
 
 export const feed = {
-  list: (before?: string) => apiJson<Post[]>("GET", `/api/feed${q({ before, limit: "20" })}`),
+  list: (o: FeedQuery = {}) => apiJson<FeedPage>("GET", `/api/feed${q({ sort: o.sort ?? "new", kind: o.kind ?? "all", mine: o.mine ? "true" : undefined, q: o.q?.trim() || undefined, cursor: o.cursor, limit: String(o.limit ?? 20) })}`),
+  get: (id: string) => apiJson<Post>("GET", `/api/feed/${encodeURIComponent(id)}`),
+  edit: (id: string, b: { body: string | null; url: string | null }) => apiJson<Post>("PATCH", `/api/feed/${encodeURIComponent(id)}`, b),
   post: (b: { body?: string; url?: string }) => apiJson<Post>("POST", "/api/feed", b),
   remove: (id: string) => apiJson<void>("DELETE", `/api/feed/${id}`),
   like: (id: string) => apiJson<{ like_count: number; liked_by_me: boolean }>("POST", `/api/feed/${id}/like`),
