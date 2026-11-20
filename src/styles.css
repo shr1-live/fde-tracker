@@ -1169,3 +1169,42 @@ details.week:not([open]) { margin-bottom: var(--s-3); }
 :root[data-brand="ff"] .guide-card { border-top: 5px solid var(--accent); }
 @media (prefers-reduced-motion: reduce) { .guide-card { animation: none; } }
 @media print { .guide-card, .guide-sw { display: none !important; } }
+
+/* ---- Missed-day alert (top right, under the top bar) */
+.reminder-alert {
+  position: fixed; z-index: 55; top: calc(var(--topbar-h) + env(safe-area-inset-top) + 12px); right: max(16px, env(safe-area-inset-right));
+  display: flex; align-items: flex-start; gap: var(--s-3); width: min(420px, calc(100vw - 32px)); padding: var(--s-4);
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--warning); border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+  animation: pop var(--dur) var(--ease);
+}
+.reminder-alert b { display: block; margin-bottom: 2px; }
+.reminder-alert .meta { margin: 0; }
+.reminder-icon { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-md); background: var(--warning-soft); color: var(--warning); }
+.reminder-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.bell-desktop { display: flex; align-items: center; gap: 8px; width: calc(100% - 8px); margin: 0 4px 6px; padding: 8px 10px; border: 1px dashed var(--border-strong); border-radius: var(--r-sm); background: transparent; color: var(--accent); font: 600 var(--fs-sm) var(--font); cursor: pointer; text-align: left; }
+.bell-desktop:hover { background: var(--accent-soft); }
+
+/* ---- Dev account picker (development builds only) */
+.devselect { flex: 1; min-width: 0; min-height: 30px; padding: 2px 6px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font: 500 var(--fs-sm) var(--font); }
+
+/* ---- Side panel: clearer groups, livelier items (both themes) */
+.nav-group + .nav-group { margin-top: var(--s-4); }
+.nav-item { transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.nav-item:hover { transform: translateX(2px); }
+.nav-item:active { transform: translateX(2px) scale(.99); }
+.nav-item.active { font-weight: 600; }
+.rail .nav-item:hover { transform: none; }
+@media (prefers-reduced-motion: reduce) { .nav-item:hover, .nav-item:active { transform: none; } }
+
+/* FiftyFive: square rows, navy rule on the current page, Manrope labels, uppercase section labels */
+:root[data-brand="ff"] .sidebar { border-right: 1px solid rgba(35, 86, 246, .08); }
+:root[data-brand="ff"] .nav-section { font-family: var(--font-ui); font-weight: 700; letter-spacing: .12em; color: var(--text-2); }
+:root[data-brand="ff"] .nav-item { border-radius: 0; font-weight: 500; }
+:root[data-brand="ff"] .nav-item:hover { background: var(--surface); color: var(--accent); }
+:root[data-brand="ff"] .nav-item:hover svg { color: var(--accent); }
+:root[data-brand="ff"] .nav-item.active { background: var(--surface); color: var(--accent); box-shadow: inset 5px 0 0 var(--accent); }
+:root[data-brand="ff"] .nav-item::before { display: none; }
+:root[data-brand="ff"] .switcher, :root[data-brand="ff"] .account { border-radius: 0; }
+:root[data-brand="ff"] .reminder-alert { border-left-width: 5px; }
+@media (max-width: 767px) { .reminder-alert { left: 12px; right: 12px; width: auto; } }
+@media print { .reminder-alert { display: none !important; } }

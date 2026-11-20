@@ -1,41 +1,45 @@
-// LOCAL DEMO DATA ONLY. Fills a LOCAL API (http://localhost) with realistic sample data covering every scenario:
-// three programs, admin / coordinators / members (one person in two programs, a coordinator who is a member elsewhere,
-// a new joiner, a pending invite), plans, day status, timesheets (complete, submitted, partial, missing days),
-// old-form daily status, per-program feed posts with likes and comments, and missed-day reminders.
+// LOCAL DEMO DATA ONLY. Fills a LOCAL API (http://localhost) with sample data for every scenario.
 //
-// It never runs in a deployment: nothing in the build, CI or Render calls it, and it refuses any API that is not localhost.
-// It signs test tokens with the LOCAL API's dev secret, which must be passed in; the live API does not accept them.
+// Sign-ins: shivanshu1 = admin, shivanshu2 = coordinator, shivanshu3 = member (+ everyone from the sheets).
+// With SEED_JSON (made by scripts/xlsx-to-seed.py from the training sheets) the FDE plan, each person's day status and
+// their daily status come from the real sheets; without it a small made-up set is used.
 //
-//   DEV_JWT_SECRET=<the local API's SUPABASE_JWT_SECRET> API=http://localhost:5080 node scripts/seed-demo.mjs
+// Scenarios: three programs (running, just started, starting next month); a coordinator who is a member elsewhere;
+// a member in two programs who filled DevOps but not FDE yesterday (gets the FDE reminder only); people with gaps;
+// late starters; a pending invite; old-form daily status next to timesheets; per-program feed with likes and comments.
 //
-// Prints a link that signs you in as any of the demo people (dev builds only).
+// Never part of a deployment: nothing in the build, CI or Render runs it, and it refuses any API that is not localhost.
+// The local API must run with ADMIN_EMAIL=shivanshu1@fiftyfivetech.io and its dev secret passed here:
+//
+//   DEV_JWT_SECRET=<local SUPABASE_JWT_SECRET> SEED_JSON=scripts/.seed-data.json node scripts/seed-demo.mjs
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 
 const API = process.env.API ?? "http://localhost:5080";
-const SECRET = process.env.DEV_JWT_SECRET;
 const WEB = process.env.WEB ?? "http://localhost:5189";
+const SECRET = process.env.DEV_JWT_SECRET;
 if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(API)) throw new Error("Refusing: demo data goes to a local API only.");
 if (!SECRET) throw new Error("Set DEV_JWT_SECRET to the local API's SUPABASE_JWT_SECRET.");
+const SHEET = process.env.SEED_JSON ? JSON.parse(readFileSync(process.env.SEED_JSON, "utf8")) : null;
 
-const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
-const token = (id, email) => {
-  const h = b64({ alg: "HS256", typ: "JWT" });
-  const p = b64({ sub: id, email, aud: "authenticated", iss: "https://test.supabase.co/auth/v1", email_verified: true, exp: Math.floor(Date.now() / 1000) + 12 * 3600 });
-  return `${h}.${p}.${crypto.createHmac("sha256", SECRET).update(`${h}.${p}`).digest("base64url")}`;
-};
-const uid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+// ---- people
 const D = "fiftyfivetech.io";
-const P = {
-  admin: { n: 1, email: `boss@${D}`, name: "Shivanshu Rai (Admin)" },
-  priya: { n: 11, email: `priya.sharma@${D}`, name: "Priya Sharma" },
-  rahul: { n: 12, email: `rahul.mehta@${D}`, name: "Rahul Mehta" },
-  asha: { n: 21, email: `asha.verma@${D}`, name: "Asha Verma" },
-  karan: { n: 22, email: `karan.singh@${D}`, name: "Karan Singh" },
-  neha: { n: 23, email: `neha.gupta@${D}`, name: "Neha Gupta" },
-  arjun: { n: 24, email: `arjun.nair@${D}`, name: "Arjun Nair" },
-  meera: { n: 25, email: `meera.jain@${D}`, name: "Meera Jain" },
-};
-for (const p of Object.values(P)) p.tok = token(uid(p.n), p.email);
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+const P = {};
+let n = 0;
+function person(key, name, email) {
+  const id = `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+  const h = b64({ alg: "HS256", typ: "JWT" });
+  const p = b64({ sub: id, email, aud: "authenticated", iss: "https://test.supabase.co/auth/v1", email_verified: true, exp: Math.floor(Date.now() / 1000) + 24 * 3600 });
+  P[key] = { name, email, tok: `${h}.${p}.${crypto.createHmac("sha256", SECRET).update(`${h}.${p}`).digest("base64url")}` };
+}
+person("s1", "Shivanshu 1 (Admin)", `shivanshu1@${D}`);
+person("s2", "Shivanshu 2 (Coordinator)", `shivanshu2@${D}`);
+person("s3", "Shivanshu 3 (Member)", `shivanshu3@${D}`);
+const sheetPeople = SHEET ? Object.keys(SHEET.people).filter((x) => x.toLowerCase() !== "shivanshu") : ["Asha Verma", "Karan Singh", "Neha Gupta", "Hemant Jain", "Ayush Jain"];
+const keyOf = (name) => name.toLowerCase().replace(/[^a-z]+/g, ".").replace(/^\.|\.$/g, "");
+for (const name of sheetPeople) person(keyOf(name), name, `${keyOf(name)}@${D}`);
+const has = (k) => !!P[k];
 
 async function call(who, method, path, body) {
   const r = await fetch(API + path, { method, headers: { authorization: `Bearer ${P[who].tok}`, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
@@ -44,156 +48,151 @@ async function call(who, method, path, body) {
   return t ? JSON.parse(t) : null;
 }
 
-// ---- dates
+// ---- dates: Day 1 of FDE is this week's Monday (as in the sheet); "Day N" counts working days
 const iso = (d) => d.toISOString().slice(0, 10);
-const day = (s, n) => { const d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+const add = (s, k) => { const d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + k); return iso(d); };
 const today = iso(new Date());
-const thisMonday = day(today, -((new Date(today + "T00:00:00Z").getUTCDay() + 6) % 7));
-const weeks = [day(thisMonday, -14), day(thisMonday, -7), thisMonday];
-const workdays = (mon) => [0, 1, 2, 3, 4].map((i) => day(mon, i)).filter((d) => d <= today);
-const ago = (n) => day(today, -n);
+const monday = add(today, -((new Date(today + "T00:00:00Z").getUTCDay() + 6) % 7));
+const workday = (start, nth) => { let d = start, c = 1; while (c < nth) { d = add(d, 1); const g = new Date(d + "T00:00:00Z").getUTCDay(); if (g && g !== 6) c++; } return d; };
+const yesterday = (() => { let d = add(today, -1); while ([0, 6].includes(new Date(d + "T00:00:00Z").getUTCDay())) d = add(d, -1); return d; })();
+const weekOf = (d) => add(d, -((new Date(d + "T00:00:00Z").getUTCDay() + 6) % 7));
 
-console.log("1. People and programs");
-for (const k of Object.keys(P)) await call(k, "GET", "/api/me"); // first sign-in (admin is approved by email)
-const me = await call("admin", "GET", "/api/me");
-let all = await call("admin", "GET", "/api/programs");
-const ensure = async (name, description, starts_on) => all.find((p) => p.name === name) ?? await call("admin", "POST", "/api/programs", { name, description, starts_on });
-const fde = all.find((p) => p.name === "FDE Training Program") ?? me.programs[0];
-await call("admin", "PATCH", `/api/programs/${fde.id}`, { starts_on: weeks[0] });
-const devops = await ensure("DevOps Training Program", "CI/CD, containers, Kubernetes and cloud basics for the platform team.", weeks[1]);
-const data = await ensure("Data Engineering Bootcamp", "Pipelines, warehousing and dbt. Starts next month.", day(thisMonday, 21));
-all = await call("admin", "GET", "/api/programs");
+console.log(`1. ${Object.keys(P).length} people sign in; programs`);
+for (const k of Object.keys(P)) await call(k, "GET", "/api/me");
+let all = (await call("s1", "GET", "/api/programs")) ?? [];
+const ensure = async (name, description, starts_on) => all.find((p) => p.name === name) ?? await call("s1", "POST", "/api/programs", { name, description, starts_on });
+const fde = await ensure("FDE Training Program", "Forward Deployed Engineer training: LLM applications from fundamentals to a delivered assistant.", monday);
+await call("s1", "PATCH", `/api/programs/${fde.id}`, { starts_on: monday });
+const devops = await ensure("DevOps Training Program", "CI/CD, containers, Kubernetes and cloud basics for the platform team.", add(monday, 2));
+const data = await ensure("Data Engineering Bootcamp", "Pipelines, warehousing and dbt. Starts next month.", add(monday, 21));
 
-const invite = (pid, k, role) => call("admin", "POST", `/api/programs/${pid}/invites`, { email: P[k].email, role });
-await invite(fde.id, "priya", "coordinator");
-for (const k of ["asha", "karan", "neha", "meera", "rahul"]) await invite(fde.id, k, "member");
-await invite(devops.id, "rahul", "coordinator");
-for (const k of ["karan", "arjun"]) await invite(devops.id, k, "member");
-await invite(data.id, "priya", "coordinator");
-await call("admin", "POST", `/api/programs/${data.id}/invites`, { email: `vikram.rao@${D}`, role: "member" }); // never signed in: pending invite
-for (const [k, p] of Object.entries(P)) await call(k, "PATCH", "/api/me", { display_name: p.name });
+const inv = (pid, k, role) => call("s1", "POST", `/api/programs/${pid}/invites`, { email: P[k].email, role });
+const devLead = has("hemant.jain") ? "hemant.jain" : sheetPeople.map(keyOf).at(-1);
+const devMember = has("ayush.jain") ? "ayush.jain" : sheetPeople.map(keyOf).at(-2);
+await inv(fde.id, "s2", "coordinator");
+await inv(fde.id, "s3", "member");
+for (const name of sheetPeople) await inv(fde.id, keyOf(name), "member");
+await inv(devops.id, devLead, "coordinator");          // a member in FDE who coordinates DevOps
+for (const k of ["s2", "s3", devMember]) await inv(devops.id, k, "member"); // s2 coordinates FDE and is a member of DevOps
+await inv(data.id, "s2", "coordinator");
+await call("s1", "POST", `/api/programs/${data.id}/invites`, { email: `new.joiner@${D}`, role: "member" }); // never signed in: pending invite
+
+for (const [k, p] of Object.entries(P)) await call(k, "PATCH", "/api/me", { display_name: p.name }); // after the invites: approved now
 
 console.log("2. Plans");
-const FDE_PLAN = [
-  ["LLM Fundamentals & Model Selection", "Tokens, context windows, sampling, cost and latency trade-offs; picking a model for a task.", "Compare three models on the same 20 prompts and write a one-page recommendation."],
-  ["Advanced Prompt Engineering", "System prompts, few-shot, chain of thought, prompt versioning.", "Build a prompt library with tests for a support-ticket classifier."],
-  ["Structured Outputs & Tool Calling", "JSON schemas, function calling, validation and retries.", "Extract invoice fields into JSON with schema validation."],
-  ["LLM Evaluation, Reliability & Guardrails", "Golden sets, LLM-as-judge, regression evals, input and output guardrails.", "Add an eval suite of 30 cases to the classifier."],
-  ["Embeddings & Vector Search", "Embedding models, chunking, similarity, pgvector.", "Index the handbook in pgvector and query it."],
-  ["Retrieval-Augmented Generation", "Retriever + generator, citations, hybrid search.", "Answer handbook questions with citations."],
-  ["RAG Evaluation", "Faithfulness, answer relevance, context recall.", "Score the RAG bot on 40 questions."],
-  ["Agents & Orchestration", "Tool loops, planning, memory, failure handling.", "Agent that files a Jira ticket from a Slack thread."],
-  ["Security for LLM Apps", "Prompt injection, data exfiltration, PII handling.", "Red-team your agent and fix two findings."],
-  ["Week 2 Demo Day", "Show your RAG bot and agent; peer review.", "10-minute demo + written retro."],
-  ["Deploying LLM Apps", "Containers, secrets, rate limits, caching.", "Deploy the RAG bot behind an API."],
-  ["Observability & Cost", "Tracing, token cost dashboards, alerts.", "Add tracing and a daily cost report."],
-  ["Customer Discovery as an FDE", "Running discovery calls, mapping workflows.", "Write a discovery brief for a sample customer."],
-  ["Capstone Build", "Scope, build and test the capstone assistant.", "Working capstone with evals."],
-  ["Capstone Delivery", "Hand-over, docs, demo to stakeholders.", "Final demo and hand-over pack."],
-];
-const DEVOPS_PLAN = [
-  ["Linux & Shell Essentials", "Processes, permissions, systemd, bash scripting.", "Script a log-rotation job."],
-  ["Git Workflows", "Branching, PRs, rebasing, protected branches.", "Set up branch protection and a PR template."],
-  ["CI with GitHub Actions", "Workflows, caching, matrices, secrets.", "CI pipeline with tests and lint."],
-  ["Docker Deep Dive", "Images, layers, multi-stage builds, scanning.", "Slim a 1 GB image below 200 MB."],
-  ["Container Networking", "Bridge networks, compose, health checks.", "Compose app with Postgres and health checks."],
-  ["Kubernetes Basics", "Pods, deployments, services, config maps.", "Deploy the app to kind."],
-  ["Helm & Config", "Charts, values, environments.", "Helm chart with dev and prod values."],
-  ["Infrastructure as Code", "Terraform state, modules, plans.", "Terraform a VPC and a database."],
-  ["Monitoring & Alerting", "Prometheus, Grafana, SLOs.", "Dashboard + two alerts."],
-  ["Incident Drill", "On-call, runbooks, post-mortems.", "Run a drill and write the post-mortem."],
-];
-async function plan(pid, items, links) {
-  const prog = await call("admin", "GET", `/api/programs/${pid}`);
-  if (prog.days.length >= items.length) return prog;
+const DEFAULT_PLAN = [["LLM Fundamentals & Model Selection", "Tokens, context windows, sampling, cost and latency.", "Build a minimal LLM-backed endpoint."], ["Advanced Prompt Engineering", "Zero-, one- and few-shot prompting, role prompting.", "Build a recruitment candidate-analysis assistant."], ["Structured Outputs & Tool Calling", "JSON schemas, function calling, validation.", "Build an AI task-management assistant."], ["LLM Evaluation, Reliability & Guardrails", "Quality criteria, eval sets, guardrails.", "Create a 30-case evaluation set."], ["End-to-End LLM Application", "Architecture of an LLM-powered app.", "Deliver an AI-powered recruitment assistant."]].map(([topic, cover, task], i) => ({ week: 1, topic, cover, task }));
+const FDE_PLAN = SHEET?.plan?.length ? SHEET.plan : DEFAULT_PLAN;
+const DEVOPS_PLAN = [["Linux & Shell Essentials", "Processes, permissions, systemd, bash.", "Script a log-rotation job."], ["Git Workflows", "Branching, PRs, protected branches.", "Branch protection and a PR template."], ["CI with GitHub Actions", "Workflows, caching, secrets.", "CI pipeline with tests and lint."], ["Docker Deep Dive", "Images, layers, multi-stage builds.", "Slim a 1 GB image below 200 MB."], ["Kubernetes Basics", "Pods, deployments, services.", "Deploy the app to kind."]].map(([topic, cover, task]) => ({ week: 1, topic, cover, task }));
+async function plan(pid, items) {
+  const prog = await call("s1", "GET", `/api/programs/${pid}`);
+  const perWeek = {};
   for (let i = prog.days.length; i < items.length; i++) {
-    const [topic, cover, task] = items[i];
-    await call("admin", "POST", `/api/programs/${pid}/days`, { week: Math.floor(i / 5) + 1, day: (i % 5) + 1, topic, topics_to_cover: cover, practical_task: task, resources: links[i % links.length] });
+    const it = items[i];
+    perWeek[it.week] = (perWeek[it.week] ?? items.slice(0, i).filter((x) => x.week === it.week).length) + 1;
+    await call("s1", "POST", `/api/programs/${pid}/days`, { week: it.week, day: perWeek[it.week], topic: it.topic.slice(0, 120), topics_to_cover: it.cover.slice(0, 4000), practical_task: it.task.slice(0, 4000) || null, resources: null });
   }
-  return call("admin", "GET", `/api/programs/${pid}`);
+  return call("s1", "GET", `/api/programs/${pid}`);
 }
-const fdeP = await plan(fde.id, FDE_PLAN, ["https://platform.openai.com/docs/guides/prompt-engineering", "https://docs.anthropic.com/en/docs/build-with-claude/tool-use", "https://www.pinecone.io/learn/retrieval-augmented-generation/"]);
-const devP = await plan(devops.id, DEVOPS_PLAN, ["https://docs.github.com/actions", "https://docs.docker.com/build/building/multi-stage/", "https://kubernetes.io/docs/tutorials/kubernetes-basics/"]);
-await plan(data.id, [["Data Modelling", "Star schemas, slowly changing dimensions.", "Model the sales domain."], ["Batch Pipelines", "Airflow, idempotency, backfills.", "Daily pipeline with backfill."]], ["https://docs.getdbt.com/"]);
+const fdeP = await plan(fde.id, FDE_PLAN);
+const devP = await plan(devops.id, DEVOPS_PLAN);
+await plan(data.id, [{ week: 1, topic: "Data Modelling", cover: "Star schemas, slowly changing dimensions.", task: "Model the sales domain." }]);
 
-console.log("3. Day status (plan progress)");
-const dayStatus = async (k, prog, n, inProgress = 0) => {
-  const days = [...prog.days].sort((a, b) => a.week - b.week || a.day - b.day);
-  for (let i = 0; i < n + inProgress && i < days.length; i++) {
-    const done = i < n;
-    await call(k, "PUT", `/api/programs/${prog.id}/day-status/${days[i].id}`, {
-      completed: done,
-      values: done ? { learned: `Covered ${days[i].topic.toLowerCase()}; the practical is done and pushed.`, proof: "https://github.com/fiftyfive-demo/fde-practicals", rating: 3 + (i % 3) } : { learned: "Halfway through the practical." },
+console.log("3. Day status (What you learn, Proof, Rate)");
+const days = [...fdeP.days].sort((a, b) => a.week - b.week || a.day - b.day);
+const proofOf = (s) => (/^https:\/\//.test(s) ? s : s ? `${s}` : "");
+async function dayStatus(k, rows) {
+  for (let i = 0; i < rows.length && i < days.length; i++) {
+    const r = rows[i];
+    if (!r.learned && !r.proof) continue;
+    const rate = Number.parseInt(r.rate, 10);
+    await call(k, "PUT", `/api/programs/${fde.id}/day-status/${days[i].id}`, {
+      completed: !!r.learned && rate >= 1 && rate <= 5, // the form needs a rating to complete a day; without one it stays in progress
+      values: { learned: (r.learned || "In progress").slice(0, 4000), ...(r.proof ? { proof: proofOf(r.proof).slice(0, 4000) } : {}), ...(rate >= 1 && rate <= 5 ? { rating: rate } : {}) },
     });
   }
-};
-await dayStatus("asha", fdeP, 11);
-await dayStatus("karan", fdeP, 8, 1);
-await dayStatus("neha", fdeP, 5, 2);
-await dayStatus("rahul", fdeP, 6);
-await dayStatus("meera", fdeP, 2);
-await dayStatus("arjun", devP, 8);
-await dayStatus("karan", devP, 6, 1);
+}
+if (SHEET) {
+  for (const [name, d] of Object.entries(SHEET.people)) await dayStatus(name.toLowerCase() === "shivanshu" ? "s3" : keyOf(name), d.days ?? []);
+} else {
+  await dayStatus("s3", [{ learned: "Built an API endpoint that sends a prompt to a model.", proof: "https://github.com/fiftyfive-demo/day1", rate: "4" }, { learned: "Compared prompt versions.", rate: "4" }]);
+}
+const devDays = [...devP.days].sort((a, b) => a.day - b.day);
+for (const k of ["s3", devMember]) await call(k, "PUT", `/api/programs/${devops.id}/day-status/${devDays[0].id}`, { completed: true, values: { learned: "Processes, permissions and a log-rotation script.", rating: 4 } });
 
-console.log("4. Timesheets (hours + notes)");
-const T = (title, h) => ({ title, h });
-const sheet = async (k, pid, mon, rows, skip = [], submit = false) => {
-  const days = workdays(mon).filter((d) => !skip.includes(d));
-  const tasks = rows.map((r, ri) => ({
-    title: r.title,
-    cells: days.map((d, di) => ({ date: d, minutes: Math.round((r.h[di % r.h.length]) * 60), note: ri === 0 ? ["Read the docs and took notes", "Paired with a teammate", "Finished the exercises", "Reviewed my notes", "Wrote a summary"][di % 5] : null })).filter((c) => c.minutes > 0),
-  }));
-  return call(k, "PUT", `/api/programs/${pid}/timesheet/${mon}`, { tasks, submit });
-};
-const FDE_ROWS = [T("Training theory", [3, 2.5, 3, 2, 3]), T("Practical task", [2.5, 3, 2, 3, 2.5]), T("Client project: Acme support bot", [2, 2, 2.5, 2, 1.5])];
-for (const [i, mon] of weeks.entries()) {
-  const current = i === 2;
-  await sheet("asha", fde.id, mon, FDE_ROWS, [], !current);                                  // always on time; past weeks submitted
-  await sheet("karan", fde.id, mon, FDE_ROWS.slice(0, 2), current ? [ago(1)] : [], !current); // missed yesterday in FDE only
-  await sheet("neha", fde.id, mon, FDE_ROWS.slice(0, 2), current ? [day(mon, 2), day(mon, 3)] : i === 1 ? [day(mon, 4)] : []); // gaps, never submits
-  await sheet("rahul", fde.id, mon, [T("Training theory", [2, 2, 1.5, 2, 2])], [], !current);
-  if (mon >= day(thisMonday, -7)) {
-    await sheet("arjun", devops.id, mon, [T("Training theory", [3, 3, 2.5, 3, 3]), T("Lab: pipelines", [3, 2.5, 3, 3, 2])], [], !current);
-    await sheet("karan", devops.id, mon, [T("DevOps labs", [1.5, 2, 1.5, 2, 1])], [], !current); // filled DevOps every day
+console.log("4. Daily status (from the 30-day sheet) as timesheets + the old form");
+// "Project Worked: Vector7 - 2 hours\nTraining Theory: Day 1 topics...\nPractical: ..." -> three timesheet rows and the old form's fields.
+function parse(textIn) {
+  const out = { project: "", theory: "", practical: "" };
+  let cur = "project";
+  for (const line of textIn.split(/\n+/)) {
+    const m = /^\s*(project(?:\s*worked)?|training\s*theory|theory|practical)\s*:?\s*(.*)$/i.exec(line);
+    if (m) { cur = /project/i.test(m[1]) ? "project" : /theory/i.test(m[1]) ? "theory" : "practical"; out[cur] = m[2].trim(); }
+    else out[cur] = `${out[cur]} ${line.trim()}`.trim();
+  }
+  return out;
+}
+const hoursIn = (s) => { const m = /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/i.exec(s); return m ? Number(m[1]) : 0; };
+const minutes = (h) => Math.round(Math.min(h, 10) * 60);
+const weeks = new Map(); // key|pid|week -> tasks
+function addCell(k, pid, date, title, mins, note) {
+  if (date > today) return;
+  const key = `${k}|${pid}|${weekOf(date)}`;
+  const tasks = weeks.get(key) ?? [];
+  let t = tasks.find((x) => x.title === title);
+  if (!t) { t = { title, cells: [] }; tasks.push(t); }
+  t.cells.push({ date, minutes: mins, note: note ? note.slice(0, 500) : null });
+  weeks.set(key, tasks);
+}
+async function daily(k, entries, skip = []) {
+  for (const [nth, txt] of Object.entries(entries)) {
+    const date = workday(monday, Number(nth));
+    if (date > today || skip.includes(date)) continue;
+    const v = parse(txt);
+    const projH = hoursIn(v.project);
+    const project = v.project && !/^(none|not\b|leave|half-day leave)/i.test(v.project) ? v.project : "";
+    if (project) addCell(k, fde.id, date, "Project work", minutes(projH || 2), project);
+    if (v.theory) addCell(k, fde.id, date, "Training theory", minutes(hoursIn(v.theory) || 3), v.theory);
+    if (v.practical) addCell(k, fde.id, date, "Practical task", minutes(hoursIn(v.practical) || 2), v.practical);
+    // The same day in the old daily form, so Reports shows it too.
+    await call(k, "PUT", `/api/programs/${fde.id}/daily/${date}`, { values: { project: (v.project || "None").slice(0, 500), theory: (v.theory || "Not given").slice(0, 4000), practical: (v.practical || "Not given").slice(0, 4000) } });
   }
 }
-await sheet("meera", fde.id, thisMonday, [T("Onboarding and setup", [0, 0, 4, 3.5, 3]), T("Training theory", [0, 0, 2, 3, 3])]); // joined mid-week
+if (SHEET) {
+  for (const [name, d] of Object.entries(SHEET.people)) {
+    const k = name.toLowerCase() === "shivanshu" ? "s3" : keyOf(name);
+    await daily(k, d.daily ?? {}, k === "s3" ? [yesterday] : []); // shivanshu3 skips FDE yesterday: the reminder scenario
+  }
+} else {
+  for (const k of sheetPeople.map(keyOf)) await daily(k, { 1: "Project Worked: Acme - 2 hours\nTraining Theory: Day 1 topics, 3 h\nPractical: Endpoint built", 2: "Project Worked: None\nTraining Theory: Day 2 topics\nPractical: In progress" });
+  await daily("s3", { 1: "Project Worked: None\nTraining Theory: Day 1 topics\nPractical: Endpoint built" }, [yesterday]);
+}
+// DevOps started on Wednesday: shivanshu3 and the DevOps member filled every day; shivanshu2 missed yesterday.
+for (let d = add(monday, 2); d <= today; d = add(d, 1)) {
+  if ([0, 6].includes(new Date(d + "T00:00:00Z").getUTCDay())) continue;
+  for (const k of ["s3", devMember]) addCell(k, devops.id, d, "DevOps labs", 120, "Linux and Git exercises");
+  if (d !== yesterday) addCell("s2", devops.id, d, "DevOps labs", 90, "Shell scripting");
+}
+for (const [key, tasks] of weeks) {
+  const [k, pid, week] = key.split("|");
+  await call(k, "PUT", `/api/programs/${pid}/timesheet/${week}`, { tasks, submit: false });
+}
 
-console.log("5. Old-form daily status (from before the timesheet)");
-for (const d of workdays(weeks[0]).slice(0, 3))
-  await call("neha", "PUT", `/api/programs/${fde.id}/daily/${d}`, { values: { project: "None", theory: "Week 1 topics, 3 h", practical: "Model comparison sheet in progress" } });
-
-console.log("6. Feed per program");
+console.log("5. Feed per program");
 const post = (k, pid, body, url) => call(k, "POST", "/api/feed", { body, url, program_id: pid });
-const fdePosts = [
-  await post("priya", fde.id, "Welcome to the FDE program! Post anything useful you find, and your demos. Week 2 demo day is on Friday.", undefined),
-  await post("asha", fde.id, "This talk on building effective agents made tool calling click for me.", "https://www.youtube.com/watch?v=D7_ipDqhtwk"),
-  await post("karan", fde.id, "Wrote up how I cut our RAG bot's token cost by 40% with smaller chunks and caching.", "https://www.anthropic.com/news/contextual-retrieval"),
-  await post("neha", fde.id, "Anyone else stuck on schema validation retries? Here is the pattern that finally worked for me.", undefined),
-  await post("meera", fde.id, "First week here! Thanks for the onboarding notes, Priya.", undefined),
-];
-const devPosts = [
-  await post("rahul", devops.id, "Reminder: the incident drill is next Thursday. Read the runbook first.", "https://sre.google/sre-book/managing-incidents/"),
-  await post("arjun", devops.id, "Got our image from 1.1 GB to 180 MB with a multi-stage build.", "https://docs.docker.com/build/building/multi-stage/"),
-  await post("karan", devops.id, "Kubernetes basics in 30 minutes, the best intro I have found.", "https://www.youtube.com/watch?v=s_o8dwzRlu4"),
-];
-const like = (k, p) => p && call(k, "POST", `/api/feed/${p.id}/like`);
-const comment = (k, p, body) => p && call(k, "POST", `/api/feed/${p.id}/comments`, { body });
-for (const k of ["asha", "karan", "neha", "meera", "rahul"]) await like(k, fdePosts[0]);
-for (const k of ["priya", "karan", "neha"]) await like(k, fdePosts[1]);
-for (const k of ["asha", "priya", "rahul", "meera"]) await like(k, fdePosts[2]);
-await comment("priya", fdePosts[2], "Great write-up. Can you show it at demo day?");
-await comment("karan", fdePosts[2], "Sure, I will add the before/after numbers.");
-await comment("asha", fdePosts[3], "Validate, then retry once with the error message in the prompt. Works for me.");
-await comment("priya", fdePosts[4], "Welcome, Meera! Ping me with any questions.");
-for (const k of ["karan", "arjun"]) await like(k, devPosts[0]);
-await like("rahul", devPosts[1]);
-await comment("rahul", devPosts[1], "Nice. Add it to the team wiki?");
+const links = SHEET ? Object.entries(SHEET.people).flatMap(([name, d]) => (d.days ?? []).map((x) => /https:\/\/github\.com\/\S+/.exec(x.proof)?.[0]).filter(Boolean).map((u) => [name, u])).slice(0, 4) : [];
+const fdePosts = [await post("s2", fde.id, "Welcome to the FDE program! Fill in your daily status every evening; reminders go out at 10:00 for missed days.")];
+for (const [name, url] of links) fdePosts.push(await post(name.toLowerCase() === "shivanshu" ? "s3" : keyOf(name), fde.id, "My practical for this week, notes and code here.", url.slice(0, 500)));
+fdePosts.push(await post("s3", fde.id, "Good talk on building effective agents; it made tool calling click for me.", "https://www.youtube.com/watch?v=D7_ipDqhtwk"));
+const devPosts = [await post(devLead, devops.id, "DevOps kicks off this week. Start with the Linux module.", "https://linuxjourney.com/"), await post(devMember, devops.id, "Got our image from 1.1 GB to 180 MB with a multi-stage build.", "https://docs.docker.com/build/building/multi-stage/")];
+const others = Object.keys(P).filter((k) => k !== "s1");
+for (const [i, p] of fdePosts.entries()) if (p) for (const k of others.slice(i, i + 4 + i)) await call(k, "POST", `/api/feed/${p.id}/like`);
+if (fdePosts[1]) { await call("s2", "POST", `/api/feed/${fdePosts[1].id}/comments`, { body: "Nice work. Can you demo this on Friday?" }); }
+if (fdePosts[0]) await call("s3", "POST", `/api/feed/${fdePosts[0].id}/comments`, { body: "Thanks! Is the plan for week 2 final?" });
+if (devPosts[1]) { await call(devLead, "POST", `/api/feed/${devPosts[1].id}/like`); await call("s3", "POST", `/api/feed/${devPosts[1].id}/comments`, { body: "Adding this to my notes." }); }
 
-console.log("7. Reminders (catch-up runs when each person opens the app)");
+console.log("6. Reminders (the catch-up runs when each person opens the app)");
 for (const k of Object.keys(P)) await call(k, "GET", "/api/notifications");
 
-const order = ["karan", "asha", "neha", "meera", "arjun", "priya", "rahul", "admin"];
-const personas = order.map((k) => `${P[k].name.split(" ")[0].replace(/[(),:]/g, "")}:${P[k].tok}`).join(",");
-console.log(`\nDone. Programs: ${all.map((p) => p.name).join(", ")}`);
-console.log(`Sign in (dev build only): ${WEB}/#personas=${encodeURIComponent(personas)}`);
+const shown = ["s1", "s2", "s3", devLead, devMember, ...sheetPeople.map(keyOf).filter((k) => ![devLead, devMember].includes(k)).slice(0, 5)];
+console.log(`\nDone: ${Object.keys(P).length} people, programs FDE / DevOps / Data Engineering.`);
+console.log(`Sign in (dev build only): ${WEB}/#personas=${encodeURIComponent(shown.map((k) => `${P[k].name.replace(/[(),:]/g, "")}:${P[k].tok}`).join(","))}`);

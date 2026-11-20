@@ -182,25 +182,30 @@ function Shell({ me }: { me: Me }) {
         {current && <ProgramSwitcher programs={progs} current={current} isAdmin={isAdmin} />}
         <nav aria-label="Main" className="nav">
           <div className="nav-group">
-            <Item to="/" end icon="home" label="Choose a program" replace={inDrawer} />
-            {isAdmin && <Item to="/programs" icon="grid" label="All programs (admin)" replace={inDrawer} />}
+            <Item to="/" end icon="grid" label="My programs" replace={inDrawer} />
           </div>
           {current && (
             <div className="nav-group" role="group" aria-labelledby="nav-program">
               <p className="nav-section" id="nav-program"><span className="sr">Program: </span>{current.name}</p>
               <Item to={`${base}/feed`} icon="rss" label="Feed" count={unseen} replace={inDrawer} />
-              <Item to={base} end icon="book" label="Plan" replace={inDrawer} />
               <Item to={`${base}/daily`} icon="daily" label="Daily status" replace={inDrawer} />
+              <Item to={base} end icon="book" label="Plan" replace={inDrawer} />
               <Item to={`${base}/status`} icon="status" label="Program status" replace={inDrawer} />
               <Item to={`${base}/reports`} icon="chart" label="Reports" replace={inDrawer} />
               {current.role !== "member" && <Item to={`${base}/manage`} icon="manage" label="Manage and invite" replace={inDrawer} />}
+            </div>
+          )}
+          {isAdmin && (
+            <div className="nav-group" role="group" aria-labelledby="nav-admin">
+              <p className="nav-section" id="nav-admin">Administration</p>
+              <Item to="/programs" icon="layers" label="All programs" replace={inDrawer} />
             </div>
           )}
           {progs.length === 0 && <p className="nav-note">You are not in a program yet. The admin or a coordinator adds you.</p>}
         </nav>
         <div className="side-foot">
           <div className="side-dev"><DevPersonaBar /></div>
-          <AccountMenu name={name} email={user?.email ?? me.email} isAdmin={isAdmin} onSignOut={() => { try { sessionStorage.removeItem(LANDED); } catch { /* ignore */ } void signOut(); }} />
+          <AccountMenu name={name} email={me.email} isAdmin={isAdmin} onSignOut={() => { try { sessionStorage.removeItem(LANDED); } catch { /* ignore */ } void signOut(); }} />
         </div>
       </aside>
       {phone && open && <div className="scrim" onClick={() => closeDrawer()} aria-hidden="true" />}
