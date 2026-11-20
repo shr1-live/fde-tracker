@@ -4,7 +4,7 @@
 // the model is told why and can put the value in Render/Vercel settings instead. Exit 0 with no output = allowed.
 //
 // Public values stay allowed: the Supabase *publishable* key (sb_publishable_...), the API and Supabase URLs.
-// web/.env.production may hold those, but never a service_role key.
+// .env.production may hold those, but never a service_role key.
 
 const RULES = [
   { name: "private key block", re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----/ },
@@ -43,7 +43,7 @@ function findings(text, filePath) {
     if ([...text.matchAll(all)].some((m) => !FAKE.test(m[0]))) hits.push(r.name);
   }
   if (serviceRoleJwt(text)) hits.push("Supabase service_role JWT");
-  // .env files (web/.env.production is committed and public): a service_role key is never given a value there.
+  // .env files (.env.production is committed and public): a service_role key is never given a value there.
   // A commented-out name with no value, as in .env.example, is fine.
   if (/(^|[\\/])\.env(\.[\w-]+)?$/i.test(filePath) && /^[ \t]*[^#\s][^=\n]*service[_-]?role[^=\n]*=[ \t]*\S/im.test(text)) hits.push("service_role key in an env file");
   return [...new Set(hits)];
