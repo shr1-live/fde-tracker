@@ -11,6 +11,7 @@ import { Icon, type IconName } from "./components/Icon";
 import { DevPersonaBar } from "./components/DevPersonaBar";
 import { ProgramSwitcher, type Prog } from "./components/shell/ProgramSwitcher";
 import { AccountMenu } from "./components/shell/AccountMenu";
+import { NotificationBell } from "./components/shell/NotificationBell";
 import { useConfirm } from "./components/Confirm";
 import { PageSkeleton } from "./components/States";
 import { BrandMark } from "./components/BrandMark";
@@ -18,6 +19,7 @@ import { useDevPersona } from "./lib/devPersona";
 
 // Every page is its own chunk, so the first load only carries the shell.
 const Landing = lazy(() => import("./pages/Landing"));
+const Home = lazy(() => import("./pages/Home"));
 const Feed = lazy(() => import("./pages/Feed"));
 const PostPage = lazy(() => import("./pages/Post"));
 const Plan = lazy(() => import("./pages/Plan"));
@@ -30,7 +32,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 const LAST = "fde:program";
 const RAIL = "fde:sidebar"; // "rail" or "full"; unset means "decide by screen width"
-const PAGES: [string, string][] = [["", "Plan"], ["daily", "Daily status"], ["status", "Program status"], ["reports", "Reports"], ["manage", "Manage"]];
+const PAGES: [string, string][] = [["feed", "Feed"], ["", "Plan"], ["daily", "Daily status"], ["status", "Program status"], ["reports", "Reports"], ["manage", "Manage"]];
 
 function useMedia(q: string) {
   const [on, setOn] = useState(() => window.matchMedia(q).matches);
@@ -48,7 +50,7 @@ function Centered({ children }: { children: ReactNode }) {
 }
 
 function crumbs(path: string, programs: Prog[]): string[] {
-  if (path === "/") return ["Feed"];
+  if (path === "/") return ["Choose a program"];
   if (path.startsWith("/post/")) return ["Feed", "Post"];
   if (path === "/programs") return ["Programs"];
   const m = matchPath("/p/:pid/*", path);
@@ -89,12 +91,17 @@ function Shell({ me }: { me: Me }) {
   const lastPath = useRef(loc.pathname);
   const progs = me.programs ?? [];
   const isAdmin = me.role === "admin";
-  const unseen = useUnseenPosts(me.id, loc.pathname === "/");
+
 
   const urlPid = matchPath("/p/:pid/*", loc.pathname)?.params.pid;
   const stored = (() => { try { return localStorage.getItem(LAST); } catch { return null; } })();
   const current = progs.find((p) => p.id === urlPid) ?? progs.find((p) => p.id === stored) ?? progs[0];
   useEffect(() => { if (current) { try { localStorage.setItem(LAST, current.id); } catch { /* ignore */ } } }, [current]);
+  const unseen = useUnseenPosts(me.id, /^\/p\/[^/]+\/feed$/.test(loc.pathname), current?.id);
+  // One sign-in, two portals: the admin (or a program's coordinator) switches between managing and taking part.
+  const manager = isAdmin || current?.role === "coordinator";
+  const adminHref = isAdmin ? "/programs" : current ? `/p/${current.id}/manage` : "/";
+  const inAdmin = loc.pathname === "/programs" || /^\/p\/[^/]+\/manage$/.test(loc.pathname);
 
   const toggleRail = () => {
     const next = rail ? "full" : "rail";
@@ -170,12 +177,13 @@ function Shell({ me }: { me: Me }) {
         {current && <ProgramSwitcher programs={progs} current={current} isAdmin={isAdmin} />}
         <nav aria-label="Main" className="nav">
           <div className="nav-group">
-            <Item to="/" end icon="home" label="Feed" count={unseen} replace={inDrawer} />
-            {isAdmin && <Item to="/programs" icon="grid" label="Programs" replace={inDrawer} />}
+            <Item to="/" end icon="home" label="Choose a program" replace={inDrawer} />
+            {isAdmin && <Item to="/programs" icon="grid" label="All programs (admin)" replace={inDrawer} />}
           </div>
           {current && (
             <div className="nav-group" role="group" aria-labelledby="nav-program">
               <p className="nav-section" id="nav-program"><span className="sr">Program: </span>{current.name}</p>
+              <Item to={`${base}/feed`} icon="rss" label="Feed" count={unseen} replace={inDrawer} />
               <Item to={base} end icon="book" label="Plan" replace={inDrawer} />
               <Item to={`${base}/daily`} icon="daily" label="Daily status" replace={inDrawer} />
               <Item to={`${base}/status`} icon="status" label="Program status" replace={inDrawer} />
@@ -200,12 +208,21 @@ function Shell({ me }: { me: Me }) {
           <nav aria-label="Breadcrumb" className="crumbs">
             <ol>{trail.map((c, i) => <li key={i} aria-current={i === trail.length - 1 ? "page" : undefined}>{c}</li>)}</ol>
           </nav>
+          <span className="grow" />
+          {manager && (
+            <div className="seg portal-switch" role="group" aria-label="Portal">
+              <Link to={adminHref} className={"seg-btn" + (inAdmin ? " active" : "")} aria-current={inAdmin ? "page" : undefined}>{isAdmin ? "Admin" : "Coordinator"}<span className="portal-word"> portal</span></Link>
+              <Link to={current ? `${base}/feed` : "/"} className={"seg-btn" + (inAdmin ? "" : " active")} aria-current={inAdmin ? undefined : "page"}>Program<span className="portal-word"> portal</span></Link>
+            </div>
+          )}
+          <NotificationBell />
         </header>
         <main ref={mainRef} id="main" className="main" tabIndex={-1}>
           <Suspense fallback={<div className="content"><PageSkeleton /></div>}>
             <div className="page" key={loc.pathname}>
               <Routes key={persona}>
-                <Route path="/" element={<Feed />} />
+                <Route path="/" element={<Home />} />
+                <Route path="/p/:pid/feed" element={<Feed />} />
                 <Route path="/post/:id" element={<PostPage />} />
                 <Route path="/programs" element={<Programs />} />
                 <Route path="/p/:pid" element={<Plan />} />
@@ -220,7 +237,7 @@ function Shell({ me }: { me: Me }) {
         </main>
         {phone && (
           <nav className="tabbar" aria-label="Shortcuts">
-            <NavLink to="/" end className="tab"><span className="tab-icon"><Icon name="home" />{!!unseen && <span className="tab-dot" />}</span><span>Feed{!!unseen && <span className="sr">, {unseen} new posts</span>}</span></NavLink>
+            <NavLink to={current ? `${base}/feed` : "/"} end className="tab"><span className="tab-icon"><Icon name="home" />{!!unseen && <span className="tab-dot" />}</span><span>Feed{!!unseen && <span className="sr">, {unseen} new posts</span>}</span></NavLink>
             {current ? (
               <>
                 <NavLink to={base} end className="tab"><span className="tab-icon"><Icon name="book" /></span><span>Plan</span></NavLink>
