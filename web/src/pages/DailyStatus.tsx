@@ -78,11 +78,11 @@ export default function DailyStatus() {
             </div>
             {existing ? <Chip tone="ok">Filled in</Chip> : <Chip tone="warn">Not filled in yet</Chip>}
           </div>
-          <FormFields fields={fields} values={values} onChange={(v) => { setValues(v); if (Object.keys(errors).length) { setErrors({}); setMsg(""); } }} errors={errors} idPrefix="ds" disabled={busy} />
+          <FormFields fields={fields} values={values} onChange={(v) => { setValues(v); if (Object.keys(errors).length) { setErrors({}); setMsg(""); } }} errors={errors} idPrefix="ds" disabled={busy || history === null} />
           {msg && <p className="field-error" role="alert">{msg}</p>}
           <div className="card-foot">
             {dirty && <span className="meta unsaved"><span className="dot" aria-hidden="true" />Unsaved changes</span>}
-            <button className="btn" disabled={busy}>{busy ? "Saving" : existing ? "Update status" : "Save status"}</button>
+            <button className="btn" disabled={busy || history === null}>{history === null ? "Loading" : busy ? "Saving" : existing ? "Update status" : "Save status"}</button>
           </div>
         </form>
         <section className="card history" aria-labelledby="hist-h">

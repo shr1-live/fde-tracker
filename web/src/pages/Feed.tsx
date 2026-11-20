@@ -50,7 +50,7 @@ export default function Feed() {
 
   const load = useCallback(async (quiet = false) => {
     const my = ++seq.current;
-    if (!quiet) setLoading(true);
+    if (!quiet) { setLoading(true); setCursor(null); } // an old cursor only works with the sort it came from
     try {
       const r = await feed.list({ sort, kind, mine, q });
       if (my !== seq.current) return;

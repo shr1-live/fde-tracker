@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useRef, useState, type FormEvent } from "react";
+import { clearUnsaved, hasUnsaved, useUnsaved } from "../../lib/unsaved";
 import { Link, useNavigate } from "react-router-dom";
 import { ago, feed, type Post } from "../../lib/v3";
 import { errText } from "../../lib/useProgram";
@@ -31,10 +32,11 @@ function Time({ iso }: { iso: string }) {
 }
 
 /** Checks body + link the same way as the server. Returns an error message or the cleaned values. */
-export function cleanPost(body: string, url: string): { body: string | null; url: string | null } | string {
+/** fromText: use the first https link in the text when the link field is empty (new posts only; when editing, an empty link field means "remove the link"). */
+export function cleanPost(body: string, url: string, fromText = true): { body: string | null; url: string | null } | string {
   const b = body.trim();
   let u = url.trim();
-  if (!u) u = firstUrl(b) ?? "";
+  if (!u && fromText) u = firstUrl(b) ?? "";
   if (!b && !u) return "Write something or add a link.";
   if (b.length > BODY_MAX) return `Keep the text under ${BODY_MAX} characters.`;
   if (u && !/^https:\/\/\S+$/.test(u)) return "The link must start with https://";
@@ -49,10 +51,11 @@ function EditForm({ post, onDone }: { post: Post; onDone: (p?: Post) => void }) 
   const [err, setErr] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const toast = useToast();
+  useUnsaved(`edit-${post.id}`, body !== (post.body ?? "") || url !== (post.url ?? ""));
   useEffect(() => { const t = ref.current; if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, []);
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    const v = cleanPost(body, url);
+    const v = cleanPost(body, url, false);
     if (typeof v === "string") { setErr(v); return; }
     setBusy(true); setErr("");
     try { const p = await feed.edit(post.id, v); toast.success("Post updated."); onDone(p); }
@@ -112,7 +115,7 @@ export const PostCard = forwardRef<HTMLElement, Props>(function PostCard({ post,
   const openComments = () => { setShowComments(true); setTimeout(() => document.getElementById(`c-${post.id}`)?.focus(), 0); };
 
   const items: MenuItem[] = [{ label: "Copy link", icon: "copy", onSelect: copy }];
-  if (!single) items.push({ label: "Open post", icon: "external", onSelect: () => navigate(`/post/${post.id}`) });
+  if (!single) items.push({ label: "Open post", icon: "external", onSelect: async () => { if (hasUnsaved() && !(await confirm({ title: "Leave without saving?", body: "You have changes on this page that are not saved yet. If you leave now, they are lost.", confirm: "Leave page", cancel: "Stay on this page", danger: true }))) return; clearUnsaved(); navigate(`/post/${post.id}`); } });
   if (mine) items.push({ label: "Edit post", icon: "edit", onSelect: () => setEditing(true) });
   if (mine || isAdmin) items.push({ label: "Delete post", icon: "trash", onSelect: remove, danger: true });
 
